@@ -189,6 +189,30 @@ int main(void)
         }
     }
 
+    /* Caminho com acento: no Windows era exatamente isto que quebrava tudo,
+       porque fopen/_mkdir são ANSI e recebiam bytes UTF-8. */
+    {
+        const char *acent = "build/dados-João-Ação";
+        Store t, t2;
+        char cmd2[256];
+
+        snprintf(cmd2, sizeof cmd2, "rm -rf '%s'", acent);
+        if (system(cmd2) != 0) { /* segue */ }
+
+        checa(store_carrega(&t, acent) == 0, "carrega em pasta com acento");
+        str_copy(t.config.razao_social, sizeof t.config.razao_social,
+                 "POSTO AÇÃO LTDA");
+        checa(store_salva_config(&t) == 0, "grava config em pasta com acento");
+        checa(store_add_placa(&t, "ABC1D23") == 0, "add placa em pasta com acento");
+        checa(store_salva_placas(&t) == 0, "grava placas em pasta com acento");
+
+        checa(store_carrega(&t2, acent) == 0, "relê de pasta com acento");
+        checa_str(t2.config.razao_social, "POSTO AÇÃO LTDA",
+                  "config relida de pasta com acento");
+        checa(t2.n_placas == 1, "placa relida de pasta com acento");
+        checa(t2.n_produtos == 4, "produtos semeados em pasta com acento");
+    }
+
     if (falhas) { fprintf(stderr, "%d verificação(ões) falharam\n", falhas); return 1; }
     printf("ok: cadastros gravam e releem corretamente\n");
     return 0;

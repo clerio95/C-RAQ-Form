@@ -3,6 +3,19 @@
 #define RAQ_UTIL_H
 
 #include <stddef.h>
+#include <stdio.h>
+
+/* Acesso a arquivo com caminho em UTF-8.
+
+   No Windows é obrigatório passar por aqui: fopen/_mkdir são as versões ANSI
+   e interpretam os bytes na página de código da máquina, não em UTF-8. Um
+   caminho como C:\Users\João\... falha em todas elas, e o programa fica sem
+   ler nem gravar nada. Estas funções convertem para UTF-16 e usam _wfopen /
+   _wmkdir. Fora do Windows são fopen/mkdir diretos. */
+FILE *arquivo_abre(const char *caminho_utf8, const char *modo);
+int   arquivo_existe(const char *caminho_utf8);
+int   pasta_cria(const char *caminho_utf8);   /* 0 = existe ou foi criada */
+void  remove_arquivo(const char *caminho_utf8);
 
 /* Cópia truncante sempre terminada em '\0'. */
 void  str_copy(char *dst, size_t dstsz, const char *src);

@@ -1,5 +1,6 @@
 #include "pdf.h"
 #include "pdf_widths.h"
+#include "util.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -137,7 +138,7 @@ int pdf_salva(Pdf *p, const char *caminho)
     int i;
 
     if (!p || !caminho) return -1;
-    f = fopen(caminho, "wb");
+    f = arquivo_abre(caminho, "wb");
     if (!f) return -1;
 
     fputs("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n", f);

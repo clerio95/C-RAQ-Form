@@ -6,14 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#  include <direct.h>
-#  define CRIA_PASTA(p) _mkdir(p)
-#else
-#  include <sys/stat.h>
-#  define CRIA_PASTA(p) mkdir(p, 0775)
-#endif
-
 /* ---------- caminhos ---------- */
 
 static void caminho(const Store *s, const char *arquivo, char *dst, size_t n)
@@ -28,7 +20,7 @@ static FILE *abre(const Store *s, const char *arquivo, const char *modo)
 {
     char p[640];
     caminho(s, arquivo, p, sizeof p);
-    return fopen(p, modo);
+    return arquivo_abre(p, modo);
 }
 
 /* ---------- CSV ---------- */
@@ -352,7 +344,7 @@ int store_carrega(Store *s, const char *dir)
     if (!s) return -1;
     memset(s, 0, sizeof *s);
     str_copy(s->dir, sizeof s->dir, dir && *dir ? dir : "dados");
-    CRIA_PASTA(s->dir);
+    pasta_cria(s->dir);
 
     le_config(s);
     le_produtos(s);
@@ -494,11 +486,11 @@ int store_registra_historico(const Store *s, const Formulario *f,
     char produtos[512] = "", volumes[512] = "";
 
     caminho(s, "historico.csv", p, sizeof p);
-    h = fopen(p, "rb");
+    h = arquivo_abre(p, "rb");
     novo = (h == NULL);
     if (h) fclose(h);
 
-    h = fopen(p, "ab");
+    h = arquivo_abre(p, "ab");
     if (!h) return -1;
     if (novo)
         fputs("data_hora;arquivo;nota_fiscal;data_coleta;distribuidor;"

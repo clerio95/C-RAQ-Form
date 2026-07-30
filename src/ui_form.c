@@ -580,8 +580,10 @@ static void cadastra_empresa(HWND h, App *a, int transportador)
     i = store_add_empresa(lista, n, nome, cnpj);
     if (i < 0) { erro(h, titulo, "Não foi possível cadastrar: nome repetido ou lista cheia."); return; }
 
-    if (transportador) store_salva_transportadores(a->store);
-    else               store_salva_distribuidores(a->store);
+    if ((transportador ? store_salva_transportadores(a->store)
+                       : store_salva_distribuidores(a->store)) != 0)
+        erro(h, titulo, "O cadastro vale para este formulário, mas não pôde "
+                        "ser gravado no disco.");
 
     combo_add(combo, nome);
     combo_define_sel(combo, i);
@@ -596,7 +598,9 @@ static void cadastra_placa(HWND h, App *a)
         return;
     i = store_add_placa(a->store, placa);
     if (i < 0) { erro(h, "Nova placa", "Placa repetida ou lista cheia."); return; }
-    store_salva_placas(a->store);
+    if (store_salva_placas(a->store) != 0)
+        erro(h, "Nova placa", "A placa vale para este formulário, mas não pôde "
+                              "ser gravada no disco.");
     combo_add(a->placa, placa);
     combo_define_sel(a->placa, i);
 }
@@ -611,7 +615,9 @@ static void cadastra_motorista(HWND h, App *a)
         return;
     i = store_add_motorista(a->store, nome, rg);
     if (i < 0) { erro(h, "Novo motorista", "Nome repetido ou lista cheia."); return; }
-    store_salva_motoristas(a->store);
+    if (store_salva_motoristas(a->store) != 0)
+        erro(h, "Novo motorista", "O motorista vale para este formulário, mas "
+                                  "não pôde ser gravado no disco.");
     combo_add(a->motorista, nome);
     combo_define_sel(a->motorista, i);
     atualiza_derivados(a);
@@ -625,7 +631,9 @@ static void cadastra_analista(HWND h, App *a)
         return;
     i = store_add_analista(a->store, nome);
     if (i < 0) { erro(h, "Novo analista", "Nome repetido ou lista cheia."); return; }
-    store_salva_analistas(a->store);
+    if (store_salva_analistas(a->store) != 0)
+        erro(h, "Novo analista", "O analista vale para este formulário, mas não "
+                                 "pôde ser gravado no disco.");
     combo_add(a->analista, nome);
     combo_define_sel(a->analista, i);
     atualiza_derivados(a);
@@ -813,9 +821,7 @@ static void monta_caminho_pdf(App *a, const Formulario *f, char *dst, size_t n)
 
     snprintf(dst, n, "%s\\RAQ_%s_NF%s.pdf", pasta, data, nf);
     for (sufixo = 2; sufixo < 100; sufixo++) {
-        wchar_t w[MAX_PATH];
-        u8_para_w(dst, w, MAX_PATH);
-        if (GetFileAttributesW(w) == INVALID_FILE_ATTRIBUTES) return;
+        if (!arquivo_existe(dst)) return;
         snprintf(dst, n, "%s\\RAQ_%s_NF%s_%d.pdf", pasta, data, nf, sufixo);
     }
 }

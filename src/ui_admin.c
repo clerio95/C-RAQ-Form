@@ -149,16 +149,27 @@ static void recarrega_cadastro(Admin *a)
     }
 }
 
+/* Toda gravação passa por aqui para que uma falha de disco apareça na hora,
+   em vez de o cadastro sumir na próxima abertura do programa. */
 static void salva_cadastro(Admin *a, int tipo)
 {
+    int r = -1;
     switch (tipo) {
-    case CAD_DISTRIBUIDOR:  store_salva_distribuidores(a->store);  break;
-    case CAD_TRANSPORTADOR: store_salva_transportadores(a->store); break;
-    case CAD_PLACA:         store_salva_placas(a->store);          break;
-    case CAD_MOTORISTA:     store_salva_motoristas(a->store);      break;
-    case CAD_ANALISTA:      store_salva_analistas(a->store);       break;
+    case CAD_DISTRIBUIDOR:  r = store_salva_distribuidores(a->store);  break;
+    case CAD_TRANSPORTADOR: r = store_salva_transportadores(a->store); break;
+    case CAD_PLACA:         r = store_salva_placas(a->store);          break;
+    case CAD_MOTORISTA:     r = store_salva_motoristas(a->store);      break;
+    case CAD_ANALISTA:      r = store_salva_analistas(a->store);       break;
     }
     a->alterou = 1;
+    if (r != 0) {
+        char m[900];
+        snprintf(m, sizeof m,
+                 "O cadastro não pôde ser gravado em:\n\n%s\n\n"
+                 "Ele vale só até fechar o programa. Verifique a permissão "
+                 "de escrita nessa pasta.", a->store->dir);
+        erro(NULL, "Erro ao salvar", m);
+    }
 }
 
 /* ---------- operações sobre os cadastros ---------- */
@@ -544,7 +555,8 @@ static void produto_novo(HWND h, Admin *a)
 
     novo.id = s->n_produtos + 1;
     s->produtos[s->n_produtos++] = novo;
-    store_salva_produtos(s);
+    if (store_salva_produtos(s) != 0)
+        erro(h, "Erro ao salvar", "O produto não pôde ser gravado no disco.");
     a->alterou = 1;
     recarrega_produtos(a);
 
@@ -561,7 +573,8 @@ static void produto_editar(HWND h, Admin *a)
         return;
     }
     if (!edita_produto(h, &a->store->produtos[i], a->fonte)) return;
-    store_salva_produtos(a->store);
+    if (store_salva_produtos(a->store) != 0)
+        erro(h, "Erro ao salvar", "A alteração não pôde ser gravada no disco.");
     a->alterou = 1;
     recarrega_produtos(a);
 }
@@ -585,7 +598,8 @@ static void produto_excluir(HWND h, Admin *a)
         return;
 
     store_remove(s->produtos, &s->n_produtos, sizeof(Produto), i);
-    store_salva_produtos(s);
+    if (store_salva_produtos(s) != 0)
+        erro(h, "Erro ao salvar", "A exclusão não pôde ser gravada no disco.");
     a->alterou = 1;
     recarrega_produtos(a);
 
@@ -609,14 +623,19 @@ static void altera_senha(HWND h, Admin *a)
         return;
     }
     senha_hash(nova, a->store->config.senha_hash, sizeof a->store->config.senha_hash);
-    store_salva_config(a->store);
     a->alterou = 1;
+    if (store_salva_config(a->store) != 0) {
+        erro(h, "Senha",
+             "A nova senha não pôde ser gravada e volta a ser a anterior "
+             "quando o programa fechar.");
+        return;
+    }
     aviso(h, "Senha", "Senha alterada.");
 }
 
 /* ---------- janela de administração ---------- */
 
-static void salva_posto(Admin *a)
+static int salva_posto(Admin *a)
 {
     Config *c = &a->store->config;
     char cnpj[MAX_CNPJ];
@@ -633,8 +652,8 @@ static void salva_posto(Admin *a)
     if (str_empty(c->pasta_saida))
         str_copy(c->pasta_saida, sizeof c->pasta_saida, "Formularios");
 
-    store_salva_config(a->store);
     a->alterou = 1;
+    return store_salva_config(a->store) == 0;
 }
 
 static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
@@ -674,7 +693,17 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         y += 30;
         cria_rotulo(h, "Pasta dos PDFs:", 26, y + 4, 130, 18, f);
         a->pasta = cria_edit(h, 160, y, 496, 24, ID_PASTA, f);
-        y += 40;
+        y += 28;
+
+        /* Mostrar a pasta de dados evita a dúvida mais cara de diagnosticar:
+           "cadastrei e sumiu" quase sempre é o exe rodando de outro lugar. */
+        {
+            char info[700];
+            snprintf(info, sizeof info, "Cadastros gravados em:  %s",
+                     a->store->dir);
+            cria_rotulo(h, info, 26, y, 630, 18, f);
+        }
+        y += 26;
 
         /* --- produtos --- */
         cria_grupo(h, "Produtos, padrões e faixas", 12, y, 660, 180, f);
@@ -745,8 +774,19 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         case ID_SENHA: altera_senha(h, a); return 0;
 
         case ID_SALVAR:
-            salva_posto(a);
-            aviso(h, "Administração", "Dados do posto salvos.");
+            if (salva_posto(a)) {
+                aviso(h, "Administração", "Dados do posto salvos.");
+            } else {
+                char m[900];
+                snprintf(m, sizeof m,
+                         "Não foi possível gravar em:\n\n%s\n\n"
+                         "Verifique se você tem permissão de escrita nessa "
+                         "pasta. Programa instalado em \"Arquivos de "
+                         "Programas\" costuma bloquear a gravação — mova a "
+                         "pasta do RAQ para o Desktop ou para C:\\RAQ.",
+                         a->store->dir);
+                erro(h, "Erro ao salvar", m);
+            }
             return 0;
 
         case ID_FECHAR:

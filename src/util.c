@@ -6,6 +6,81 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef _WIN32
+#  include <windows.h>
+#  include <wchar.h>
+#else
+#  include <sys/stat.h>
+#  include <sys/types.h>
+#  include <errno.h>
+#endif
+
+#ifdef _WIN32
+
+/* Converte UTF-8 -> UTF-16 para entregar às APIs -W. */
+static int para_wide(const char *utf8, wchar_t *dst, int dst_chars)
+{
+    if (!utf8 || !dst || dst_chars <= 0) return 0;
+    return MultiByteToWideChar(CP_UTF8, 0, utf8, -1, dst, dst_chars) != 0;
+}
+
+FILE *arquivo_abre(const char *caminho_utf8, const char *modo)
+{
+    wchar_t wc[1024], wm[8];
+    if (!para_wide(caminho_utf8, wc, 1024)) return NULL;
+    if (!para_wide(modo, wm, 8)) return NULL;
+    return _wfopen(wc, wm);
+}
+
+int arquivo_existe(const char *caminho_utf8)
+{
+    wchar_t wc[1024];
+    if (!para_wide(caminho_utf8, wc, 1024)) return 0;
+    return GetFileAttributesW(wc) != INVALID_FILE_ATTRIBUTES;
+}
+
+int pasta_cria(const char *caminho_utf8)
+{
+    wchar_t wc[1024];
+    if (!para_wide(caminho_utf8, wc, 1024)) return -1;
+    if (CreateDirectoryW(wc, NULL)) return 0;
+    return (GetLastError() == ERROR_ALREADY_EXISTS) ? 0 : -1;
+}
+
+void remove_arquivo(const char *caminho_utf8)
+{
+    wchar_t wc[1024];
+    if (para_wide(caminho_utf8, wc, 1024)) DeleteFileW(wc);
+}
+
+#else
+
+FILE *arquivo_abre(const char *caminho_utf8, const char *modo)
+{
+    return fopen(caminho_utf8, modo);
+}
+
+int arquivo_existe(const char *caminho_utf8)
+{
+    FILE *f = fopen(caminho_utf8, "rb");
+    if (!f) return 0;
+    fclose(f);
+    return 1;
+}
+
+int pasta_cria(const char *caminho_utf8)
+{
+    if (mkdir(caminho_utf8, 0775) == 0) return 0;
+    return arquivo_existe(caminho_utf8) || errno == EEXIST ? 0 : -1;
+}
+
+void remove_arquivo(const char *caminho_utf8)
+{
+    remove(caminho_utf8);
+}
+
+#endif
+
 void str_copy(char *dst, size_t dstsz, const char *src)
 {
     size_t n;

@@ -37,6 +37,31 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE anterior, PWSTR cmdline, int mostr
         return 1;
     }
 
+    /* Confere de verdade que dá para gravar, em vez de descobrir isso só
+       quando o operador perder o primeiro cadastro. Falha aqui quase sempre
+       é pasta somente leitura: RAQ.exe dentro de "Arquivos de Programas",
+       numa pasta de rede sem permissão, ou ainda dentro do .zip baixado. */
+    {
+        char teste[700];
+        FILE *f;
+        snprintf(teste, sizeof teste, "%s\\gravacao.tmp", dados);
+        f = arquivo_abre(teste, "wb");
+        if (!f) {
+            char m[1200];
+            snprintf(m, sizeof m,
+                     "O programa não consegue gravar em:\n\n%s\n\n"
+                     "Nada que você cadastrar será salvo.\n\n"
+                     "Mova a pasta do RAQ para um lugar com permissão de "
+                     "escrita — o Desktop ou C:\\RAQ resolvem. Se o programa "
+                     "veio num .zip, extraia a pasta antes de abrir.",
+                     dados);
+            erro(NULL, "Sem permissão para gravar", m);
+        } else {
+            fclose(f);
+            remove_arquivo(teste);
+        }
+    }
+
     janela = ui_form_cria(inst, &g_store);
     if (!janela) {
         erro(NULL, "Erro", "Não foi possível criar a janela do programa.");
