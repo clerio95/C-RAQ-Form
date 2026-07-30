@@ -81,25 +81,36 @@ static void num_para_texto(double v, int casas, char *dst, size_t n)
 
 /* ---------- padrões da primeira execução ---------- */
 
+static const struct ProdutoBase {
+    const char *nome, *cor;
+    double mmin, mmax;
+    int gas; double gmin, gmax;
+    int aehc; double amin, amax;
+    int bio; double bmin, bmax;
+} base[] = {
+    /* Massa específica em kg/m³ (735,00 e não 0,7350). */
+    { "GASOLINA C",   "AMARELADA",  735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
+    { "GASOLINA ADV", "ESVERDEADA", 735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
+    { "DIESEL S10",   "AMARELADA",  817.00, 865.00, 0, 0, 0,       0, 0, 0,     1, 14.5, 15.5 },
+    { "ETANOL ADV",   "ESVERDEADA", 807.60, 811.20, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0 }
+};
+
+#define N_PRODUTOS_BASE ((int)(sizeof base / sizeof base[0]))
+
+static const struct ProdutoBase *base_por_nome(const char *nome)
+{
+    int i;
+    for (i = 0; i < N_PRODUTOS_BASE; i++)
+        if (!strcmp(base[i].nome, nome)) return &base[i];
+    return NULL;
+}
+
 static void semeia_produtos(Store *s)
 {
-    static const struct {
-        const char *nome, *cor;
-        double mmin, mmax;
-        int gas; double gmin, gmax;
-        int aehc; double amin, amax;
-        int bio; double bmin, bmax;
-    } base[] = {
-        /* Massa específica em kg/m³ (735,00 e não 0,7350). */
-        { "GASOLINA C",   "AMARELADA",  735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
-        { "GASOLINA ADV", "ESVERDEADA", 735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
-        { "DIESEL S10",   "AMARELADA",  817.00, 865.00, 0, 0, 0,       0, 0, 0,     1, 14.5, 15.5 },
-        { "ETANOL ADV",   "ESVERDEADA", 807.60, 811.20, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0 }
-    };
     int i;
 
     s->n_produtos = 0;
-    for (i = 0; i < (int)(sizeof base / sizeof base[0]); i++) {
+    for (i = 0; i < N_PRODUTOS_BASE; i++) {
         Produto *p = &s->produtos[s->n_produtos];
         memset(p, 0, sizeof *p);
         p->id = i + 1;
@@ -199,9 +210,24 @@ static void le_produtos(Store *s)
         num_parse(c[10], &p->aehc_min);
         num_parse(c[11], &p->aehc_max);
         p->ativo = c[12][0] ? atoi(c[12]) : 1;
-        p->usa_teor_bio = atoi(c[13]);
-        num_parse(c[14], &p->bio_min);
-        num_parse(c[15], &p->bio_max);
+
+        if (c[13][0]) {
+            p->usa_teor_bio = atoi(c[13]);
+            num_parse(c[14], &p->bio_min);
+            num_parse(c[15], &p->bio_max);
+        } else {
+            /* Coluna ausente: o arquivo é anterior ao teor de biodiesel, e o
+               admin nunca teve como opinar. Vale mais adotar o padrão do
+               produto do que deixar o DIESEL S10 sem a exigência — quem tiver
+               renomeado o produto habilita na mão. */
+            const struct ProdutoBase *b = base_por_nome(p->nome);
+            if (b && b->bio) {
+                p->usa_teor_bio = 1;
+                p->bio_min = b->bmin;
+                p->bio_max = b->bmax;
+                migrou = 1;
+            }
+        }
 
         /* Versões anteriores gravavam a massa específica em g/cm³ (0,7350).
            Agora o formulário trabalha em kg/m³ (735,00). Densidade de

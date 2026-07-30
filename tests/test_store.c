@@ -153,16 +153,30 @@ int main(void)
                   "aehc_max;ativo\n", fp);
             fputs("1;GASOLINA C;L.I.I.;AMARELADA;0.7350;0.7750;1;26.0;28.0;"
                   "0;0.0;0.0;1\n", fp);
+            fputs("3;DIESEL S10;L.I.I.;AMARELADA;0.8170;0.8650;0;0.0;0.0;"
+                  "0;0.0;0.0;1\n", fp);
+            fputs("9;OLEO ESPECIAL;L.I.I.;AMARELADA;0.8500;0.9000;0;0.0;0.0;"
+                  "0;0.0;0.0;1\n", fp);
             fclose(fp);
         }
 
         checa(store_carrega(&t, velho) == 0, "carrega cadastro antigo");
-        checa(t.n_produtos == 1, "um produto no arquivo antigo");
+        checa(t.n_produtos == 3, "tres produtos no arquivo antigo");
         checa(t.produtos[0].massa_min > 734.99 && t.produtos[0].massa_min < 735.01,
               "massa mínima convertida para kg/m³");
         checa(t.produtos[0].massa_max > 774.99 && t.produtos[0].massa_max < 775.01,
               "massa máxima convertida para kg/m³");
         checa(t.produtos[0].usa_teor_gas == 1, "teor de gasolina preservado na migração");
+        checa(t.produtos[1].massa_min > 816.99 && t.produtos[1].massa_min < 817.01,
+              "massa do diesel convertida");
+
+        /* Arquivo anterior ao biodiesel: o DIESEL S10 adota o padrão em vez de
+           ficar sem exigência, e um produto desconhecido não ganha nada. */
+        checa(t.produtos[1].usa_teor_bio == 1, "diesel antigo ganha teor de biodiesel");
+        checa(t.produtos[1].bio_min > 14.49 && t.produtos[1].bio_min < 14.51,
+              "faixa de biodiesel adotada no diesel antigo");
+        checa(t.produtos[0].usa_teor_bio == 0, "gasolina antiga segue sem biodiesel");
+        checa(t.produtos[2].usa_teor_bio == 0, "produto desconhecido segue sem biodiesel");
 
         /* A conversão é gravada, então reler não converte de novo. */
         {
@@ -170,6 +184,8 @@ int main(void)
             checa(store_carrega(&t2, velho) == 0, "recarrega já migrado");
             checa(t2.produtos[0].massa_min > 734.99 && t2.produtos[0].massa_min < 735.01,
                   "migração não se repete");
+            checa(t2.produtos[1].usa_teor_bio == 1,
+                  "biodiesel do diesel persiste após regravação");
         }
     }
 

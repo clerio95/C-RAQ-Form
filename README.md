@@ -23,6 +23,25 @@ Formularios/      os PDFs gerados
 Para fazer backup, copie a pasta `dados`. Para levar tudo para outro
 computador, copie a pasta inteira.
 
+## Atualizando o programa
+
+**Nada precisa ser reconfigurado.** Para trocar de versão, substitua só o
+`RAQ.exe` e mantenha a pasta `dados` no lugar — ou, vindo de outro computador,
+copie a pasta `dados` antiga para junto do novo executável. Todos os cadastros,
+os dados do posto, a senha e o histórico continuam valendo.
+
+Os arquivos se atualizam sozinhos na primeira abertura, quando faz falta:
+
+| Mudança | O que acontece com o arquivo antigo |
+|---|---|
+| Massa específica passou de g/cm³ para kg/m³ | `0,7350` vira `735,00` na leitura, e o arquivo é regravado já convertido |
+| Linha "Teor de Biodiesel" | produtos anteriores à mudança adotam o padrão do produto — o DIESEL S10 vem com 14,5% a 15,5% |
+| Demais cadastros | formato inalterado, lidos como estão |
+
+A conversão acontece uma vez só; reabrir o programa não converte de novo.
+Só vale a pena apagar algum arquivo de `dados` se você quiser mesmo voltar aos
+valores de fábrica daquele cadastro.
+
 ## Primeiro uso (administrador)
 
 1. Abra o `RAQ.exe`.
