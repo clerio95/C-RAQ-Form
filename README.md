@@ -33,6 +33,17 @@ computador, copie a pasta inteira.
 4. Em **Produtos**, confira os padrões e as faixas de cada produto (aspecto,
    cor, massa específica mínima/máxima, teores). Já vem preenchido com
    GASOLINA C, GASOLINA ADV, DIESEL S10 e ETANOL ADV.
+
+   Cada produto diz quais teores exige, e cada teor tem sua própria faixa:
+
+   | Produto | Teor de álcool na Gasolina | Teor Alcoólico no AEHC | Teor de Biodiesel |
+   |---|---|---|---|
+   | GASOLINA C / ADV | 26% a 28% | — | — |
+   | DIESEL S10 | — | — | 14,5% a 15,5% |
+   | ETANOL ADV | — | 99,3% a 100% | — |
+
+   Os teores são percentuais. No formulário, as linhas que não se aplicam ao
+   produto saem com `-`.
 5. Em **Cadastros**, cadastre os distribuidores e transportadores. Selecione o
    mais usado e clique em *Definir padrão* — ele virá escolhido sozinho no
    formulário, poupando tempo do operador.

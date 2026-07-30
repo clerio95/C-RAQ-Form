@@ -43,6 +43,12 @@ int main(void)
     checa_str(s.produtos[1].cor_padrao, "ESVERDEADA", "cor da gasolina ADV");
     checa(s.produtos[2].usa_teor_gas == 0, "diesel não usa teor de gasolina");
     checa(s.produtos[3].usa_teor_aehc == 1, "etanol usa teor AEHC");
+    checa(s.produtos[2].usa_teor_bio == 1, "diesel usa teor de biodiesel");
+    checa(s.produtos[2].bio_min > 14.49 && s.produtos[2].bio_min < 14.51,
+          "biodiesel mínimo 14,5");
+    checa(s.produtos[2].bio_max > 15.49 && s.produtos[2].bio_max < 15.51,
+          "biodiesel máximo 15,5");
+    checa(s.produtos[0].usa_teor_bio == 0, "gasolina não usa teor de biodiesel");
 
     /* A senha inicial é "admin". */
     {
@@ -98,6 +104,11 @@ int main(void)
           "massa mínima preservada");
     checa(r.produtos[0].massa_max > 0.7749 && r.produtos[0].massa_max < 0.7751,
           "massa máxima preservada");
+    checa(r.produtos[2].usa_teor_bio == 1, "teor de biodiesel preservado");
+    checa(r.produtos[2].bio_min > 14.49 && r.produtos[2].bio_min < 14.51,
+          "biodiesel mínimo preservado");
+    checa(r.produtos[2].bio_max > 15.49 && r.produtos[2].bio_max < 15.51,
+          "biodiesel máximo preservado");
 
     /* Remoção desloca a lista corretamente. */
     store_add_placa(&r, "XYZ4E56");

@@ -64,8 +64,8 @@ typedef struct {
 
 typedef struct {
     HWND cabecalho;
-    HWND aspecto, cor, massa, teor_gas, teor_aehc;
-    HWND faixa_massa, faixa_gas, faixa_aehc;
+    HWND aspecto, cor, massa, teor_gas, teor_aehc, teor_bio;
+    HWND faixa_massa, faixa_gas, faixa_aehc, faixa_bio;
     HWND rot_massa, rot_gas, rot_aehc;   /* nada: rótulos são da coluna 0 */
 } CtlColuna;
 
@@ -110,12 +110,15 @@ static void numero_br(double v, int casas, char *dst, size_t n)
     for (p = dst; *p; p++) if (*p == '.') *p = ',';
 }
 
-static void texto_faixa(char *dst, size_t n, double min, double max, int casas)
+/* `unidade` sai junto dos dois extremos: os teores são percentuais e ficam
+   ambíguos sem o símbolo. A massa específica passa "". */
+static void texto_faixa(char *dst, size_t n, double min, double max, int casas,
+                        const char *unidade)
 {
     char a[32], b[32];
     numero_br(min, casas, a, sizeof a);
     numero_br(max, casas, b, sizeof b);
-    snprintf(dst, n, "faixa: %s a %s", a, b);
+    snprintf(dst, n, "faixa: %s%s a %s%s", a, unidade, b, unidade);
 }
 
 static int produto_marcado(const App *a, int i)
@@ -230,6 +233,8 @@ static void aplica_visibilidade(App *a)
             ShowWindow(c->faixa_gas,   SW_HIDE);
             ShowWindow(c->teor_aehc,   SW_HIDE);
             ShowWindow(c->faixa_aehc,  SW_HIDE);
+            ShowWindow(c->teor_bio,    SW_HIDE);
+            ShowWindow(c->faixa_bio,   SW_HIDE);
             continue;
         }
 
@@ -250,6 +255,8 @@ static void aplica_visibilidade(App *a)
         ShowWindow(c->faixa_gas, (on && p->usa_teor_gas)  ? SW_SHOW : SW_HIDE);
         ShowWindow(c->teor_aehc, (on && p->usa_teor_aehc) ? SW_SHOW : SW_HIDE);
         ShowWindow(c->faixa_aehc,(on && p->usa_teor_aehc) ? SW_SHOW : SW_HIDE);
+        ShowWindow(c->teor_bio,  (on && p->usa_teor_bio)  ? SW_SHOW : SW_HIDE);
+        ShowWindow(c->faixa_bio, (on && p->usa_teor_bio)  ? SW_SHOW : SW_HIDE);
     }
 }
 
@@ -263,16 +270,20 @@ static void aplica_padroes(App *a, int i)
     ctl_define_texto(c->aspecto, p->aspecto_padrao);
     ctl_define_texto(c->cor,     p->cor_padrao);
 
-    texto_faixa(faixa, sizeof faixa, p->massa_min, p->massa_max, 4);
+    texto_faixa(faixa, sizeof faixa, p->massa_min, p->massa_max, 4, "");
     ctl_define_texto(c->faixa_massa, faixa);
 
     if (p->usa_teor_gas) {
-        texto_faixa(faixa, sizeof faixa, p->gas_min, p->gas_max, 1);
+        texto_faixa(faixa, sizeof faixa, p->gas_min, p->gas_max, 1, "%");
         ctl_define_texto(c->faixa_gas, faixa);
     }
     if (p->usa_teor_aehc) {
-        texto_faixa(faixa, sizeof faixa, p->aehc_min, p->aehc_max, 1);
+        texto_faixa(faixa, sizeof faixa, p->aehc_min, p->aehc_max, 1, "%");
         ctl_define_texto(c->faixa_aehc, faixa);
+    }
+    if (p->usa_teor_bio) {
+        texto_faixa(faixa, sizeof faixa, p->bio_min, p->bio_max, 1, "%");
+        ctl_define_texto(c->faixa_bio, faixa);
     }
 }
 
@@ -281,7 +292,7 @@ static void revalida_faixas(App *a, int col)
 {
     const Produto *p = &a->store->produtos[col];
     CtlColuna *c = &a->coluna[col];
-    struct { HWND ctl; int linha; double min, max; int usa; } campos[3];
+    struct { HWND ctl; int linha; double min, max; int usa; } campos[4];
     int i;
 
     campos[0].ctl = c->massa;     campos[0].linha = ANALISE_MASSA;
@@ -290,8 +301,10 @@ static void revalida_faixas(App *a, int col)
     campos[1].min = p->gas_min;   campos[1].max = p->gas_max;   campos[1].usa = p->usa_teor_gas;
     campos[2].ctl = c->teor_aehc; campos[2].linha = ANALISE_TEOR_AEHC;
     campos[2].min = p->aehc_min;  campos[2].max = p->aehc_max;  campos[2].usa = p->usa_teor_aehc;
+    campos[3].ctl = c->teor_bio;  campos[3].linha = ANALISE_TEOR_BIO;
+    campos[3].min = p->bio_min;   campos[3].max = p->bio_max;   campos[3].usa = p->usa_teor_bio;
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 4; i++) {
         char txt[64];
         double v;
         int ruim = 0;
@@ -407,18 +420,20 @@ static int monta_bloco_analise(App *a, HWND h, int y)
 {
     static const char *ROT[ANALISE_N] = {
         "Aspecto:", "Cor:", "Massa Específica a 20°C:",
-        "Teor de álcool na Gasolina:", "Teor Alcoólico no AEHC:"
+        "Teor de álcool na Gasolina:", "Teor Alcoólico no AEHC:",
+        "Teor de Biodiesel:"
     };
     static const char *ASPECTOS[] = { "L.I.I.", "L.I.I.C.", "TURVO", "COM IMPUREZAS" };
     static const char *CORES[]    = { "AMARELADA", "ESVERDEADA", "INCOLOR", "LARANJA" };
 
-    int altura = 28 + 24 + 2 * ALT_LINHA_UI + 3 * 44 + 10;
+    int altura = 28 + 24 + 2 * ALT_LINHA_UI + 4 * 44 + 10;
     int y_cab = y + 26;
     int y_asp = y_cab + 24;
     int y_cor = y_asp + ALT_LINHA_UI;
     int y_mas = y_cor + ALT_LINHA_UI;
     int y_gas = y_mas + 44;
     int y_aeh = y_gas + 44;
+    int y_bio = y_aeh + 44;
     int i, k;
 
     cria_grupo(h, "Resultados da análise", MARGEM, y,
@@ -429,6 +444,7 @@ static int monta_bloco_analise(App *a, HWND h, int y)
     a->rot_analise[2] = cria_rotulo(h, ROT[2], MARGEM + 16, y_mas + 5, LARG_ROTULO + 10, 18, a->fonte);
     a->rot_analise[3] = cria_rotulo(h, ROT[3], MARGEM + 16, y_gas + 5, LARG_ROTULO + 10, 18, a->fonte);
     a->rot_analise[4] = cria_rotulo(h, ROT[4], MARGEM + 16, y_aeh + 5, LARG_ROTULO + 10, 18, a->fonte);
+    a->rot_analise[5] = cria_rotulo(h, ROT[5], MARGEM + 16, y_bio + 5, LARG_ROTULO + 10, 18, a->fonte);
 
     for (i = 0; i < a->store->n_produtos && i < MAX_PRODUTOS; i++) {
         CtlColuna *c = &a->coluna[i];
@@ -454,6 +470,9 @@ static int monta_bloco_analise(App *a, HWND h, int y)
 
         c->teor_aehc   = cria_edit(h, x, y_aeh, w, ALT_CTL, base + ANALISE_TEOR_AEHC, a->fonte);
         c->faixa_aehc  = cria_rotulo(h, "", x, y_aeh + ALT_CTL + 2, w, 16, a->fonte_peq);
+
+        c->teor_bio    = cria_edit(h, x, y_bio, w, ALT_CTL, base + ANALISE_TEOR_BIO, a->fonte);
+        c->faixa_bio   = cria_rotulo(h, "", x, y_bio + ALT_CTL + 2, w, 16, a->fonte_peq);
     }
 
     return y + altura + 10;
@@ -666,6 +685,14 @@ static int coleta(App *a, Formulario *f, char *problema, size_t nprob)
                 return 0;
             }
         }
+        if (s->produtos[i].usa_teor_bio) {
+            ctl_texto(a->coluna[i].teor_bio, c->teor_bio, sizeof c->teor_bio);
+            if (str_empty(c->teor_bio)) {
+                snprintf(problema, nprob,
+                         "Informe o teor de biodiesel de %s.", s->produtos[i].nome);
+                return 0;
+            }
+        }
     }
 
     if (f->n_colunas == 0) {
@@ -741,7 +768,7 @@ static int resume_fora_faixa(App *a, char *dst, size_t n)
         for (k = 0; k < ANALISE_N; k++) {
             static const char *nomes[ANALISE_N] = {
                 "", "", "massa específica", "teor de álcool na gasolina",
-                "teor alcoólico no AEHC"
+                "teor alcoólico no AEHC", "teor de biodiesel"
             };
             char linha[160];
             if (!a->fora_faixa[i][k]) continue;
@@ -804,6 +831,7 @@ static void limpa_formulario(App *a)
         ctl_define_texto(a->coluna[i].massa, "");
         ctl_define_texto(a->coluna[i].teor_gas, "");
         ctl_define_texto(a->coluna[i].teor_aehc, "");
+        ctl_define_texto(a->coluna[i].teor_bio, "");
         memset(a->fora_faixa[i], 0, sizeof a->fora_faixa[i]);
     }
     ctl_define_texto(a->nf, "");

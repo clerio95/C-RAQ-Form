@@ -48,6 +48,9 @@
 #define ID_P_USA_AEHC   508
 #define ID_P_AEHC_MIN   509
 #define ID_P_AEHC_MAX   510
+#define ID_P_USA_BIO    511
+#define ID_P_BIO_MIN    512
+#define ID_P_BIO_MAX    513
 
 enum { CAD_DISTRIBUIDOR = 0, CAD_TRANSPORTADOR, CAD_PLACA, CAD_MOTORISTA,
        CAD_ANALISTA, CAD_N };
@@ -306,6 +309,7 @@ typedef struct {
     HWND nome, aspecto, cor, massa_min, massa_max;
     HWND usa_gas, gas_min, gas_max;
     HWND usa_aehc, aehc_min, aehc_max;
+    HWND usa_bio, bio_min, bio_max;
 } EditorProduto;
 
 static void ep_define_num(HWND ctl, double v, int casas)
@@ -328,8 +332,10 @@ static void ep_atualiza_habilitados(EditorProduto *e)
 {
     int g = SendMessageW(e->usa_gas,  BM_GETCHECK, 0, 0) == BST_CHECKED;
     int a = SendMessageW(e->usa_aehc, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    int b = SendMessageW(e->usa_bio,  BM_GETCHECK, 0, 0) == BST_CHECKED;
     EnableWindow(e->gas_min,  g); EnableWindow(e->gas_max,  g);
     EnableWindow(e->aehc_min, a); EnableWindow(e->aehc_max, a);
+    EnableWindow(e->bio_min,  b); EnableWindow(e->bio_max,  b);
 }
 
 static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
@@ -380,6 +386,16 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
         e->aehc_min = cria_edit(h, 100, y, 100, 24, ID_P_AEHC_MIN, f);
         cria_rotulo(h, "máximo:", 220, y + 4, 55, 18, f);
         e->aehc_max = cria_edit(h, 280, y, 100, 24, ID_P_AEHC_MAX, f);
+        y += 38;
+
+        e->usa_bio = cria_check(h, "Exige teor de biodiesel",
+                                14, y + 2, 250, 20, ID_P_USA_BIO, f);
+        y += 26;
+        cria_rotulo(h, "mínimo:", 34, y + 4, 60, 18, f);
+        e->bio_min = cria_edit(h, 100, y, 100, 24, ID_P_BIO_MIN, f);
+        cria_rotulo(h, "máximo:", 220, y + 4, 55, 18, f);
+        e->bio_max = cria_edit(h, 280, y, 100, 24, ID_P_BIO_MAX, f);
+        cria_rotulo(h, "(os teores são percentuais)", 390, y + 4, 170, 18, f);
         y += 44;
 
         cria_ctl(h, L"BUTTON", "Salvar", BS_DEFPUSHBUTTON | WS_TABSTOP,
@@ -399,6 +415,10 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
                      e->p->usa_teor_aehc ? BST_CHECKED : BST_UNCHECKED, 0);
         ep_define_num(e->aehc_min, e->p->aehc_min, 1);
         ep_define_num(e->aehc_max, e->p->aehc_max, 1);
+        SendMessageW(e->usa_bio, BM_SETCHECK,
+                     e->p->usa_teor_bio ? BST_CHECKED : BST_UNCHECKED, 0);
+        ep_define_num(e->bio_min, e->p->bio_min, 1);
+        ep_define_num(e->bio_max, e->p->bio_max, 1);
         ep_atualiza_habilitados(e);
         SetFocus(e->nome);
         return 0;
@@ -408,6 +428,7 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
         switch (LOWORD(wp)) {
         case ID_P_USA_GAS:
         case ID_P_USA_AEHC:
+        case ID_P_USA_BIO:
             ep_atualiza_habilitados(e);
             return 0;
 
@@ -439,6 +460,9 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
             e->p->usa_teor_aehc = SendMessageW(e->usa_aehc, BM_GETCHECK, 0, 0) == BST_CHECKED;
             e->p->aehc_min = ep_le_num(e->aehc_min);
             e->p->aehc_max = ep_le_num(e->aehc_max);
+            e->p->usa_teor_bio = SendMessageW(e->usa_bio, BM_GETCHECK, 0, 0) == BST_CHECKED;
+            e->p->bio_min = ep_le_num(e->bio_min);
+            e->p->bio_max = ep_le_num(e->bio_max);
             e->p->ativo = 1;
 
             e->confirmou = 1;
@@ -483,7 +507,7 @@ static int edita_produto(HWND pai, Produto *p, HFONT fonte)
 
     h = CreateWindowExW(WS_EX_DLGMODALFRAME, L"RaqEditorProduto", L"Produto",
                         WS_POPUPWINDOW | WS_CAPTION,
-                        CW_USEDEFAULT, CW_USEDEFAULT, 500, 400,
+                        CW_USEDEFAULT, CW_USEDEFAULT, 590, 470,
                         pai, NULL, inst, &e);
     if (!h) return 0;
 

@@ -41,7 +41,8 @@ static const char *ROTULO_RECEBIMENTO[L_RECEBIMENTO_N] = {
 
 static const char *ROTULO_ANALISE[ANALISE_N] = {
     "Aspecto", "Cor", "Massa Específica a 20°C",
-    "Teor de álcool na Gasolina", "Teor Alcoólico no AEHC"
+    "Teor de álcool na Gasolina", "Teor Alcoólico no AEHC",
+    "Teor de Biodiesel"
 };
 
 /* Linhas mescladas: uma célula única atravessando todas as colunas. */
@@ -150,6 +151,7 @@ const char *coluna_valor_analise(const ColunaProduto *c, int linha)
     case ANALISE_MASSA:     return c->massa;
     case ANALISE_TEOR_GAS:  return c->produto->usa_teor_gas  ? c->teor_gas  : "-";
     case ANALISE_TEOR_AEHC: return c->produto->usa_teor_aehc ? c->teor_aehc : "-";
+    case ANALISE_TEOR_BIO:  return c->produto->usa_teor_bio  ? c->teor_bio  : "-";
     default:                return "-";
     }
 }

@@ -45,6 +45,8 @@ typedef struct {
     double gas_min, gas_max;
     int   usa_teor_aehc;
     double aehc_min, aehc_max;
+    int   usa_teor_bio;
+    double bio_min, bio_max;
     int   ativo;
 } Produto;
 
@@ -84,6 +86,7 @@ typedef struct {
     char massa[MAX_CAMPO];
     char teor_gas[MAX_CAMPO];
     char teor_aehc[MAX_CAMPO];
+    char teor_bio[MAX_CAMPO];
 } ColunaProduto;
 
 typedef struct {
@@ -117,6 +120,7 @@ enum {
     ANALISE_MASSA,
     ANALISE_TEOR_GAS,
     ANALISE_TEOR_AEHC,
+    ANALISE_TEOR_BIO,
     ANALISE_N
 };
 

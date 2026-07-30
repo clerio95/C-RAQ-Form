@@ -31,6 +31,7 @@ Linhas **por produto** (uma célula por coluna):
 - Massa Específica a 20 °C
 - Teor de álcool na Gasolina
 - Teor Alcoólico no AEHC
+- Teor de Biodiesel
 
 Linhas **mescladas** (uma célula única atravessando todas as colunas):
 
@@ -47,12 +48,15 @@ Linhas **mescladas** (uma célula única atravessando todas as colunas):
 
 Aplicabilidade das linhas de análise:
 
-| Produto | Massa Esp. | Teor Gasolina | Teor AEHC |
-|---|---|---|---|
-| GASOLINA C | ✔ | ✔ | — |
-| GASOLINA ADV | ✔ | ✔ | — |
-| DIESEL S10 | ✔ | — | — |
-| ETANOL ADV | ✔ | — | ✔ |
+| Produto | Massa Esp. | Teor Gasolina | Teor AEHC | Teor Biodiesel |
+|---|---|---|---|---|
+| GASOLINA C | ✔ | ✔ | — | — |
+| GASOLINA ADV | ✔ | ✔ | — | — |
+| DIESEL S10 | ✔ | — | — | ✔ (14,5% a 15,5%) |
+| ETANOL ADV | ✔ | — | ✔ | — |
+
+Os três teores são percentuais; a faixa exibida ao lado do campo sai com `%`.
+Toda a aplicabilidade e as faixas são editáveis pelo admin, por produto.
 
 Células não aplicáveis são impressas com `-`.
 

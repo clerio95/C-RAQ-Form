@@ -88,11 +88,12 @@ static void semeia_produtos(Store *s)
         double mmin, mmax;
         int gas; double gmin, gmax;
         int aehc; double amin, amax;
+        int bio; double bmin, bmax;
     } base[] = {
-        { "GASOLINA C",   "AMARELADA",  0.7350, 0.7750, 1, 26.0, 28.0, 0, 0, 0 },
-        { "GASOLINA ADV", "ESVERDEADA", 0.7350, 0.7750, 1, 26.0, 28.0, 0, 0, 0 },
-        { "DIESEL S10",   "AMARELADA",  0.8170, 0.8650, 0, 0, 0, 0, 0, 0 },
-        { "ETANOL ADV",   "ESVERDEADA", 0.8076, 0.8112, 0, 0, 0, 1, 99.3, 100.0 }
+        { "GASOLINA C",   "AMARELADA",  0.7350, 0.7750, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
+        { "GASOLINA ADV", "ESVERDEADA", 0.7350, 0.7750, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
+        { "DIESEL S10",   "AMARELADA",  0.8170, 0.8650, 0, 0, 0,       0, 0, 0,     1, 14.5, 15.5 },
+        { "ETANOL ADV",   "ESVERDEADA", 0.8076, 0.8112, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0 }
     };
     int i;
 
@@ -109,6 +110,8 @@ static void semeia_produtos(Store *s)
         p->gas_min = base[i].gmin;   p->gas_max = base[i].gmax;
         p->usa_teor_aehc = base[i].aehc;
         p->aehc_min = base[i].amin;  p->aehc_max = base[i].amax;
+        p->usa_teor_bio = base[i].bio;
+        p->bio_min = base[i].bmin;   p->bio_max = base[i].bmax;
         p->ativo = 1;
         s->n_produtos++;
     }
@@ -169,11 +172,15 @@ static void le_produtos(Store *s)
 
     s->n_produtos = 0;
     while (fgets(linha, sizeof linha, f) && s->n_produtos < MAX_PRODUTOS) {
-        char *c[14];
+        char *c[17];
         Produto *p;
         if (primeira) { primeira = 0; if (strstr(linha, "nome")) continue; }
         if (str_empty(linha)) continue;
-        csv_divide(linha, c, 14);
+        /* As colunas de biodiesel foram acrescentadas depois de "ativo", para
+           que um produtos.csv gravado por uma versão anterior continue lendo
+           certo — nesse caso csv_divide devolve vazio e o produto fica sem
+           exigência de biodiesel até o admin habilitar. */
+        csv_divide(linha, c, 17);
 
         p = &s->produtos[s->n_produtos];
         memset(p, 0, sizeof *p);
@@ -190,6 +197,9 @@ static void le_produtos(Store *s)
         num_parse(c[10], &p->aehc_min);
         num_parse(c[11], &p->aehc_max);
         p->ativo = c[12][0] ? atoi(c[12]) : 1;
+        p->usa_teor_bio = atoi(c[13]);
+        num_parse(c[14], &p->bio_min);
+        num_parse(c[15], &p->bio_max);
         if (str_empty(p->nome)) continue;
         s->n_produtos++;
     }
@@ -337,11 +347,13 @@ int store_salva_produtos(const Store *s)
     int i;
     if (!f) return -1;
     fputs("id;nome;aspecto_padrao;cor_padrao;massa_min;massa_max;"
-          "usa_teor_gas;gas_min;gas_max;usa_teor_aehc;aehc_min;aehc_max;ativo\n", f);
+          "usa_teor_gas;gas_min;gas_max;usa_teor_aehc;aehc_min;aehc_max;ativo;"
+          "usa_teor_bio;bio_min;bio_max\n", f);
     for (i = 0; i < s->n_produtos; i++) {
         const Produto *p = &s->produtos[i];
         char id[16], mmin[32], mmax[32], gmin[32], gmax[32], amin[32], amax[32];
-        char ug[4], ua[4], at[4];
+        char bmin[32], bmax[32];
+        char ug[4], ua[4], ub[4], at[4];
         snprintf(id, sizeof id, "%d", p->id);
         num_para_texto(p->massa_min, 4, mmin, sizeof mmin);
         num_para_texto(p->massa_max, 4, mmax, sizeof mmax);
@@ -349,11 +361,15 @@ int store_salva_produtos(const Store *s)
         num_para_texto(p->gas_max,   1, gmax, sizeof gmax);
         num_para_texto(p->aehc_min,  1, amin, sizeof amin);
         num_para_texto(p->aehc_max,  1, amax, sizeof amax);
+        num_para_texto(p->bio_min,   1, bmin, sizeof bmin);
+        num_para_texto(p->bio_max,   1, bmax, sizeof bmax);
         snprintf(ug, sizeof ug, "%d", p->usa_teor_gas);
         snprintf(ua, sizeof ua, "%d", p->usa_teor_aehc);
+        snprintf(ub, sizeof ub, "%d", p->usa_teor_bio);
         snprintf(at, sizeof at, "%d", p->ativo);
-        csv_linha(f, 13, id, p->nome, p->aspecto_padrao, p->cor_padrao,
-                  mmin, mmax, ug, gmin, gmax, ua, amin, amax, at);
+        csv_linha(f, 16, id, p->nome, p->aspecto_padrao, p->cor_padrao,
+                  mmin, mmax, ug, gmin, gmax, ua, amin, amax, at,
+                  ub, bmin, bmax);
     }
     return fclose(f) == 0 ? 0 : -1;
 }
