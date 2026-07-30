@@ -68,6 +68,8 @@ int main(void)
              "AUTO POSTO SÃO JOSÉ LTDA");
     str_copy(s.config.cidade_estado, sizeof s.config.cidade_estado, "RECIFE/PE");
     str_copy(s.config.pasta_saida, sizeof s.config.pasta_saida, "Formularios");
+    str_copy(s.config.impressora, sizeof s.config.impressora,
+             "HP LaserJet da Rede");
     checa(store_salva_config(&s) == 0, "salva config");
 
     checa(store_add_empresa(s.distribuidores, &s.n_distribuidores,
@@ -92,6 +94,8 @@ int main(void)
     checa(store_carrega(&r, dir) == 0, "store_carrega releitura");
     checa_str(r.config.razao_social, "AUTO POSTO SÃO JOSÉ LTDA", "razão social com acento");
     checa_str(r.config.cidade_estado, "RECIFE/PE", "cidade/estado");
+    checa_str(r.config.impressora, "HP LaserJet da Rede",
+              "impressora fixada preservada");
     checa(r.n_distribuidores == 1, "um distribuidor");
     checa_str(r.distribuidores[0].nome, "IPIRANGA PRODUTOS DE PETRÓLEO S.A.",
               "nome do distribuidor com acento");

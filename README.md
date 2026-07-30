@@ -64,10 +64,23 @@ valores de fábrica daquele cadastro.
    A massa específica é digitada e impressa em **kg/m³** (`751,20`, não
    `0,7512`) e os teores em **%**. A unidade sai junto do valor no formulário.
    As linhas que não se aplicam ao produto saem com `-`.
-5. Em **Cadastros**, cadastre os distribuidores e transportadores. Selecione o
+5. Confira a **Impressora**, logo abaixo da pasta dos PDFs. A lista traz as
+   impressoras instaladas, inclusive as da rede.
+
+   - `(usar a padrão do Windows)` — segue o que estiver marcado como padrão no
+     Windows. O nome da impressora atual aparece entre parênteses na própria
+     opção.
+   - escolher uma impressora pelo nome **fixa** ela. Vale a pena numa rede:
+     assim o formulário não passa a sair no "Microsoft Print to PDF" se
+     alguém mexer no padrão do Windows.
+
+   Na hora de imprimir, o programa mostra o nome da impressora na pergunta
+   *"Deseja imprimir agora em ...?"*, então o operador sempre vê para onde o
+   papel vai antes de confirmar.
+6. Em **Cadastros**, cadastre os distribuidores e transportadores. Selecione o
    mais usado e clique em *Definir padrão* — ele virá escolhido sozinho no
    formulário, poupando tempo do operador.
-6. Troque a senha em *Alterar senha*.
+7. Troque a senha em *Alterar senha*.
 
 > Ao **incluir ou excluir um produto**, feche e abra o programa para a tela de
 > preenchimento se ajustar.
@@ -97,7 +110,7 @@ Tudo em `dados/`, em arquivos de texto separados por `;` que abrem no Excel:
 
 | Arquivo | Conteúdo |
 |---|---|
-| `config.ini` | dados do posto, pasta de saída, senha (em hash) |
+| `config.ini` | dados do posto, pasta de saída, impressora, senha (em hash) |
 | `produtos.csv` | produtos, padrões de aspecto/cor e faixas |
 | `distribuidores.csv` / `transportadores.csv` | nome, CNPJ, qual é o padrão |
 | `placas.csv`, `motoristas.csv`, `analistas.csv` | cadastros reutilizáveis |

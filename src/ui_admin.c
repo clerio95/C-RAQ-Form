@@ -6,6 +6,7 @@
    para resistir a um ataque de verdade — e o arquivo de dados fica ao lado do
    executável de qualquer jeito. */
 #include "ui_admin.h"
+#include "backend_gdi.h"
 #include "store.h"
 #include "util.h"
 #include "win_util.h"
@@ -19,6 +20,7 @@
 #define ID_BAIRRO       103
 #define ID_CIDADE       104
 #define ID_PASTA        105
+#define ID_IMPRESSORA   106
 
 #define ID_TIPO_CAD     200
 #define ID_LISTA_CAD    201
@@ -60,7 +62,9 @@ typedef struct {
     HFONT  fonte;
     int    alterou;
 
-    HWND razao, cnpj, endereco, bairro, cidade, pasta;
+    HWND razao, cnpj, endereco, bairro, cidade, pasta, impressora;
+    char lista_impressoras[32][256];
+    int  n_impressoras;
     HWND tipo_cad, lista_cad, btn_padrao;
     HWND lista_prod;
 } Admin;
@@ -652,6 +656,16 @@ static int salva_posto(Admin *a)
     if (str_empty(c->pasta_saida))
         str_copy(c->pasta_saida, sizeof c->pasta_saida, "Formularios");
 
+    {
+        int i = combo_sel(a->impressora);
+        /* Índice 0 é "usar a padrão do Windows", gravado como vazio. */
+        if (i > 0 && i <= a->n_impressoras)
+            str_copy(c->impressora, sizeof c->impressora,
+                     a->lista_impressoras[i - 1]);
+        else
+            c->impressora[0] = '\0';
+    }
+
     a->alterou = 1;
     return store_salva_config(a->store) == 0;
 }
@@ -674,7 +688,7 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         f = a->fonte;
 
         /* --- dados do posto --- */
-        cria_grupo(h, "Dados fixos do posto", 12, y, 660, 210, f);
+        cria_grupo(h, "Dados fixos do posto", 12, y, 660, 268, f);
         y += 26;
         cria_rotulo(h, "Razão social:", 26, y + 4, 130, 18, f);
         a->razao = cria_edit(h, 160, y, 496, 24, ID_RAZAO, f);
@@ -693,7 +707,37 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         y += 30;
         cria_rotulo(h, "Pasta dos PDFs:", 26, y + 4, 130, 18, f);
         a->pasta = cria_edit(h, 160, y, 496, 24, ID_PASTA, f);
-        y += 28;
+        y += 30;
+
+        /* Impressora usada ao confirmar a impressão do formulário. */
+        cria_rotulo(h, "Impressora:", 26, y + 4, 130, 18, f);
+        a->impressora = cria_combo(h, 160, y, 496, 300, ID_IMPRESSORA, f);
+        {
+            char em_uso[256];
+            int i, sel = 0;
+
+            a->n_impressoras = raq_lista_impressoras(a->lista_impressoras, 32);
+
+            /* A primeira opção deixa o programa seguir o padrão do Windows;
+               as demais fixam uma impressora específica. */
+            if (raq_impressora_em_uso("", em_uso, sizeof em_uso)) {
+                char rot[320];
+                snprintf(rot, sizeof rot,
+                         "(usar a padrão do Windows — hoje: %s)", em_uso);
+                combo_add(a->impressora, rot);
+            } else {
+                combo_add(a->impressora,
+                          "(usar a padrão do Windows — nenhuma encontrada)");
+            }
+
+            for (i = 0; i < a->n_impressoras; i++) {
+                combo_add(a->impressora, a->lista_impressoras[i]);
+                if (!strcmp(a->lista_impressoras[i], a->store->config.impressora))
+                    sel = i + 1;
+            }
+            combo_define_sel(a->impressora, sel);
+        }
+        y += 30;
 
         /* Mostrar a pasta de dados evita a dúvida mais cara de diagnosticar:
            "cadastrei e sumiu" quase sempre é o exe rodando de outro lugar. */
@@ -842,7 +886,7 @@ int ui_admin_abre(HWND pai, Store *store)
         RECT r;
         /* 690x700 cobre exatamente o conteúdo montado em admin_proc e ainda
            cabe numa tela de 768 px de altura, comum em PC de posto. */
-        r.left = 0; r.top = 0; r.right = 690; r.bottom = 700;
+        r.left = 0; r.top = 0; r.right = 690; r.bottom = 760;
         AdjustWindowRect(&r, WS_POPUPWINDOW | WS_CAPTION, FALSE);
         h = CreateWindowExW(WS_EX_DLGMODALFRAME, L"RaqAdmin", L"Administração",
                             WS_POPUPWINDOW | WS_CAPTION,

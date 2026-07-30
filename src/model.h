@@ -60,6 +60,10 @@ typedef struct {
     char cidade_estado[MAX_CAMPO];
     char pasta_saida[512];
     char senha_hash[64];
+    /* Vazio = usa a impressora padrão do Windows. Preenchido = fixa esta,
+       para o formulário não seguir o padrão do Windows quando alguém troca
+       (o "Microsoft Print to PDF" costuma virar padrão sozinho). */
+    char impressora[256];
 } Config;
 
 /* ---------- catálogo completo carregado do disco ---------- */

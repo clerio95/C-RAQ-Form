@@ -8,9 +8,12 @@
 #include "backend_gdi.h"
 #include "pdf.h"
 #include "render.h"
+#include "util.h"
 #include "win_util.h"
 
+#include <stdlib.h>
 #include <string.h>
+#include <winspool.h>
 
 typedef struct {
     HDC   dc;
@@ -99,23 +102,73 @@ static double bg_largura(void *ctx, int negrito, double tam, const char *s)
     return pdf_largura_texto(negrito ? PDF_FONT_BOLD : PDF_FONT_REGULAR, tam, s);
 }
 
-int raq_imprime(const Formulario *f, HWND pai)
+int raq_lista_impressoras(char nomes[][256], int max)
 {
-    PRINTDLGW pd;
+    DWORD precisa = 0, devolvidas = 0;
+    BYTE *buf;
+    PRINTER_INFO_4W *info;
+    int n = 0, i;
+
+    EnumPrintersW(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, NULL, 4,
+                  NULL, 0, &precisa, &devolvidas);
+    if (precisa == 0) return 0;
+
+    buf = (BYTE *)malloc(precisa);
+    if (!buf) return 0;
+
+    if (EnumPrintersW(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, NULL, 4,
+                      buf, precisa, &precisa, &devolvidas)) {
+        info = (PRINTER_INFO_4W *)buf;
+        for (i = 0; i < (int)devolvidas && n < max; i++)
+            if (info[i].pPrinterName)
+                w_para_u8(info[i].pPrinterName, nomes[n++], 256);
+    }
+    free(buf);
+    return n;
+}
+
+/* Nome da impressora padrão do Windows. */
+static int impressora_padrao(char *dst, int dst_bytes)
+{
+    wchar_t nome[512];
+    DWORD n = (DWORD)(sizeof nome / sizeof nome[0]);
+
+    if (!GetDefaultPrinterW(nome, &n)) return 0;
+    w_para_u8(nome, dst, dst_bytes);
+    return dst[0] != '\0';
+}
+
+int raq_impressora_em_uso(const char *impressora, char *dst, int dst_bytes)
+{
+    if (impressora && *impressora) {
+        str_copy(dst, (size_t)dst_bytes, impressora);
+        return 1;
+    }
+    return impressora_padrao(dst, dst_bytes);
+}
+
+int raq_imprime(const Formulario *f, HWND pai, const char *impressora)
+{
     DOCINFOW di;
     GdiCtx g;
     DrawBackend b;
+    HDC dc;
+    char nome[256];
+    wchar_t wnome[512];
     int ok = 0;
 
-    memset(&pd, 0, sizeof pd);
-    pd.lStructSize = sizeof pd;
-    pd.hwndOwner   = pai;
-    pd.Flags       = PD_RETURNDC | PD_RETURNDEFAULT | PD_NOSELECTION;
+    (void)pai;
 
-    if (!PrintDlgW(&pd) || !pd.hDC) return -1;
+    if (!raq_impressora_em_uso(impressora, nome, sizeof nome)) return -1;
+    u8_para_w(nome, wnome, (int)(sizeof wnome / sizeof wnome[0]));
+
+    /* Abre direto na impressora escolhida, sem caixa de diálogo: o operador
+       já respondeu "sim" à pergunta de imprimir. */
+    dc = CreateDCW(L"WINSPOOL", wnome, NULL, NULL);
+    if (!dc) return -1;
 
     memset(&g, 0, sizeof g);
-    g.dc    = pd.hDC;
+    g.dc    = dc;
     g.dpi_x = GetDeviceCaps(g.dc, LOGPIXELSX);
     g.dpi_y = GetDeviceCaps(g.dc, LOGPIXELSY);
     g.off_x = GetDeviceCaps(g.dc, PHYSICALOFFSETX);
@@ -143,8 +196,6 @@ int raq_imprime(const Formulario *f, HWND pai)
     }
 
     if (g.fonte_atual) DeleteObject(g.fonte_atual);
-    DeleteDC(g.dc);
-    if (pd.hDevMode)  GlobalFree(pd.hDevMode);
-    if (pd.hDevNames) GlobalFree(pd.hDevNames);
+    DeleteDC(dc);
     return ok ? 0 : -1;
 }

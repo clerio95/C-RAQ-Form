@@ -878,13 +878,35 @@ static void gera(HWND h, App *a)
 
     store_registra_historico(a->store, &f, caminho);
 
-    snprintf(msg, sizeof msg,
-             "Formulário salvo em:\n\n%s\n\nDeseja imprimir agora?", caminho);
-    if (pergunta(h, "Formulário gerado", msg)) {
-        if (raq_imprime(&f, h) != 0)
-            erro(h, "Impressão",
-                 "Não foi possível imprimir. O arquivo PDF já está salvo e "
-                 "pode ser impresso manualmente.");
+    {
+        char impressora[256];
+        int tem = raq_impressora_em_uso(a->store->config.impressora,
+                                        impressora, sizeof impressora);
+
+        /* O nome da impressora vai na pergunta: assim o operador vê para onde
+           o papel vai antes de confirmar, sem precisar abrir configuração. */
+        if (tem)
+            snprintf(msg, sizeof msg,
+                     "Formulário salvo em:\n\n%s\n\n"
+                     "Deseja imprimir agora em:\n%s ?", caminho, impressora);
+        else
+            snprintf(msg, sizeof msg,
+                     "Formulário salvo em:\n\n%s\n\n"
+                     "Nenhuma impressora foi encontrada no Windows.",
+                     caminho);
+
+        if (tem && pergunta(h, "Formulário gerado", msg)) {
+            if (raq_imprime(&f, h, a->store->config.impressora) != 0) {
+                char e[600];
+                snprintf(e, sizeof e,
+                         "Não foi possível imprimir em:\n%s\n\n"
+                         "O PDF já está salvo e pode ser impresso "
+                         "manualmente.", impressora);
+                erro(h, "Impressão", e);
+            }
+        } else if (!tem) {
+            aviso(h, "Formulário gerado", msg);
+        }
     }
 
     limpa_formulario(a);

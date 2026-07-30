@@ -19,7 +19,7 @@ CFLAGS_COMUM := -std=c99 -Wall -Wextra -O2 -I$(SRC_DIR)
 # Link estático para o .exe rodar em qualquer Windows sem instalar nada.
 CFLAGS_WIN := $(CFLAGS_COMUM) -municode -mwindows
 LDFLAGS_WIN := -static -static-libgcc -mwindows \
-               -lgdi32 -lcomdlg32 -lcomctl32 -lole32 -luser32 -lkernel32
+               -lgdi32 -lcomdlg32 -lcomctl32 -lwinspool -lole32 -luser32 -lkernel32
 
 # Fontes comuns às duas plataformas.
 SRC_NUCLEO := $(SRC_DIR)/util.c $(SRC_DIR)/pdf.c $(SRC_DIR)/render.c \

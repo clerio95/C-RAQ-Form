@@ -157,6 +157,7 @@ static void le_config(Store *s)
         else if (!strcmp(chave, "cidade_estado")) str_copy(s->config.cidade_estado, sizeof s->config.cidade_estado, eq + 1);
         else if (!strcmp(chave, "pasta_saida"))   str_copy(s->config.pasta_saida,   sizeof s->config.pasta_saida,   eq + 1);
         else if (!strcmp(chave, "senha_hash"))    str_copy(s->config.senha_hash,    sizeof s->config.senha_hash,    eq + 1);
+        else if (!strcmp(chave, "impressora"))    str_copy(s->config.impressora,    sizeof s->config.impressora,    eq + 1);
     }
     fclose(f);
 
@@ -370,6 +371,8 @@ int store_salva_config(const Store *s)
     fprintf(f, "cidade_estado=%s\n", s->config.cidade_estado);
     fprintf(f, "pasta_saida=%s\n",   s->config.pasta_saida);
     fprintf(f, "senha_hash=%s\n",    s->config.senha_hash);
+    fprintf(f, "# Vazio = usa a impressora padrao do Windows.\n");
+    fprintf(f, "impressora=%s\n",    s->config.impressora);
     return fclose(f) == 0 ? 0 : -1;
 }
 
