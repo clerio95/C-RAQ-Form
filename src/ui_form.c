@@ -270,7 +270,7 @@ static void aplica_padroes(App *a, int i)
     ctl_define_texto(c->aspecto, p->aspecto_padrao);
     ctl_define_texto(c->cor,     p->cor_padrao);
 
-    texto_faixa(faixa, sizeof faixa, p->massa_min, p->massa_max, 4, "");
+    texto_faixa(faixa, sizeof faixa, p->massa_min, p->massa_max, 2, " kg/m³");
     ctl_define_texto(c->faixa_massa, faixa);
 
     if (p->usa_teor_gas) {
@@ -419,7 +419,7 @@ static int monta_bloco_recebimento(App *a, HWND h, int y)
 static int monta_bloco_analise(App *a, HWND h, int y)
 {
     static const char *ROT[ANALISE_N] = {
-        "Aspecto:", "Cor:", "Massa Específica a 20°C:",
+        "Aspecto:", "Cor:", "Massa Específica a 20°C (kg/m³):",
         "Teor de álcool na Gasolina:", "Teor Alcoólico no AEHC:",
         "Teor de Biodiesel:"
     };

@@ -90,10 +90,11 @@ static void semeia_produtos(Store *s)
         int aehc; double amin, amax;
         int bio; double bmin, bmax;
     } base[] = {
-        { "GASOLINA C",   "AMARELADA",  0.7350, 0.7750, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
-        { "GASOLINA ADV", "ESVERDEADA", 0.7350, 0.7750, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
-        { "DIESEL S10",   "AMARELADA",  0.8170, 0.8650, 0, 0, 0,       0, 0, 0,     1, 14.5, 15.5 },
-        { "ETANOL ADV",   "ESVERDEADA", 0.8076, 0.8112, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0 }
+        /* Massa específica em kg/m³ (735,00 e não 0,7350). */
+        { "GASOLINA C",   "AMARELADA",  735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
+        { "GASOLINA ADV", "ESVERDEADA", 735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
+        { "DIESEL S10",   "AMARELADA",  817.00, 865.00, 0, 0, 0,       0, 0, 0,     1, 14.5, 15.5 },
+        { "ETANOL ADV",   "ESVERDEADA", 807.60, 811.20, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0 }
     };
     int i;
 
@@ -167,6 +168,7 @@ static void le_produtos(Store *s)
     FILE *f = abre(s, "produtos.csv", "rb");
     char linha[1024];
     int primeira = 1;
+    int migrou = 0;
 
     if (!f) { semeia_produtos(s); store_salva_produtos(s); return; }
 
@@ -200,12 +202,24 @@ static void le_produtos(Store *s)
         p->usa_teor_bio = atoi(c[13]);
         num_parse(c[14], &p->bio_min);
         num_parse(c[15], &p->bio_max);
+
+        /* Versões anteriores gravavam a massa específica em g/cm³ (0,7350).
+           Agora o formulário trabalha em kg/m³ (735,00). Densidade de
+           combustível fica na casa das centenas em kg/m³ e abaixo de 1 em
+           g/cm³, então um valor menor que 10 só pode ser do formato antigo. */
+        if (p->massa_max > 0.0 && p->massa_max < 10.0) {
+            p->massa_min *= 1000.0;
+            p->massa_max *= 1000.0;
+            migrou = 1;
+        }
+
         if (str_empty(p->nome)) continue;
         s->n_produtos++;
     }
     fclose(f);
 
     if (s->n_produtos == 0) { semeia_produtos(s); store_salva_produtos(s); }
+    else if (migrou) store_salva_produtos(s);   /* grava já convertido */
 }
 
 static void le_empresas(Store *s, const char *arquivo, Empresa *lista, int *n)
@@ -355,8 +369,8 @@ int store_salva_produtos(const Store *s)
         char bmin[32], bmax[32];
         char ug[4], ua[4], ub[4], at[4];
         snprintf(id, sizeof id, "%d", p->id);
-        num_para_texto(p->massa_min, 4, mmin, sizeof mmin);
-        num_para_texto(p->massa_max, 4, mmax, sizeof mmax);
+        num_para_texto(p->massa_min, 2, mmin, sizeof mmin);
+        num_para_texto(p->massa_max, 2, mmax, sizeof mmax);
         num_para_texto(p->gas_min,   1, gmin, sizeof gmin);
         num_para_texto(p->gas_max,   1, gmax, sizeof gmax);
         num_para_texto(p->aehc_min,  1, amin, sizeof amin);

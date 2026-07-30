@@ -98,9 +98,10 @@ static void recarrega_produtos(Admin *a)
     for (i = 0; i < a->store->n_produtos; i++) {
         const Produto *p = &a->store->produtos[i];
         char linha[320], mmin[32], mmax[32];
-        numero_br(p->massa_min, 4, mmin, sizeof mmin);
-        numero_br(p->massa_max, 4, mmax, sizeof mmax);
-        snprintf(linha, sizeof linha, "%s   —   %s / %s   —   massa %s a %s",
+        numero_br(p->massa_min, 2, mmin, sizeof mmin);
+        numero_br(p->massa_max, 2, mmax, sizeof mmax);
+        snprintf(linha, sizeof linha,
+                 "%s   —   %s / %s   —   massa %s a %s kg/m³",
                  p->nome, p->aspecto_padrao, p->cor_padrao, mmin, mmax);
         lista_add(a->lista_prod, linha);
     }
@@ -364,7 +365,7 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
         e->cor = cria_edit(h, 170, y, 250, 24, ID_P_COR, f);
         y += 40;
 
-        cria_rotulo(h, "Massa específica — mínimo:", 14, y + 4, 170, 18, f);
+        cria_rotulo(h, "Massa específica (kg/m³) — mín.:", 14, y + 4, 175, 18, f);
         e->massa_min = cria_edit(h, 190, y, 100, 24, ID_P_MASSA_MIN, f);
         cria_rotulo(h, "máximo:", 300, y + 4, 55, 18, f);
         e->massa_max = cria_edit(h, 360, y, 100, 24, ID_P_MASSA_MAX, f);
@@ -395,7 +396,7 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
         e->bio_min = cria_edit(h, 100, y, 100, 24, ID_P_BIO_MIN, f);
         cria_rotulo(h, "máximo:", 220, y + 4, 55, 18, f);
         e->bio_max = cria_edit(h, 280, y, 100, 24, ID_P_BIO_MAX, f);
-        cria_rotulo(h, "(os teores são percentuais)", 390, y + 4, 170, 18, f);
+        cria_rotulo(h, "(os teores são em %)", 390, y + 4, 170, 18, f);
         y += 44;
 
         cria_ctl(h, L"BUTTON", "Salvar", BS_DEFPUSHBUTTON | WS_TABSTOP,
@@ -405,8 +406,8 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
         ctl_define_texto(e->nome,    e->p->nome);
         ctl_define_texto(e->aspecto, e->p->aspecto_padrao);
         ctl_define_texto(e->cor,     e->p->cor_padrao);
-        ep_define_num(e->massa_min, e->p->massa_min, 4);
-        ep_define_num(e->massa_max, e->p->massa_max, 4);
+        ep_define_num(e->massa_min, e->p->massa_min, 2);
+        ep_define_num(e->massa_max, e->p->massa_max, 2);
         SendMessageW(e->usa_gas, BM_SETCHECK,
                      e->p->usa_teor_gas ? BST_CHECKED : BST_UNCHECKED, 0);
         ep_define_num(e->gas_min, e->p->gas_min, 1);

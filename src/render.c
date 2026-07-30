@@ -45,6 +45,12 @@ static const char *ROTULO_ANALISE[ANALISE_N] = {
     "Teor de Biodiesel"
 };
 
+/* Unidade impressa junto do valor. Aspecto e Cor não têm; a massa específica
+   sai em kg/m³ e os três teores em porcentagem. */
+static const char *UNIDADE_ANALISE[ANALISE_N] = {
+    "", "", " kg/m³", "%", "%", "%"
+};
+
 /* Linhas mescladas: uma célula única atravessando todas as colunas. */
 static int linha_mesclada(LinhaRecebimento l)
 {
@@ -269,8 +275,17 @@ void raq_desenha(const DrawBackend *b, const Formulario *f)
                    X_ROTULO_FIM - X_ESQ - 2 * REC_PAD, 0);
 
         for (c = 0; c < f->n_colunas && c < n; c++) {
-            texto_utf8(b, col_x[c] + REC_PAD, base, 0, FONTE_CORPO,
-                       coluna_valor_analise(&f->colunas[c], i),
+            const char *v = coluna_valor_analise(&f->colunas[c], i);
+            char com_unidade[128];
+
+            /* A unidade acompanha o número, mas não o "-" das linhas que não
+               se aplicam ao produto. */
+            if (*UNIDADE_ANALISE[i] && !str_empty(v) && strcmp(v, "-")) {
+                snprintf(com_unidade, sizeof com_unidade, "%s%s",
+                         v, UNIDADE_ANALISE[i]);
+                v = com_unidade;
+            }
+            texto_utf8(b, col_x[c] + REC_PAD, base, 0, FONTE_CORPO, v,
                        col_x[c + 1] - col_x[c] - 2 * REC_PAD, 1);
         }
 

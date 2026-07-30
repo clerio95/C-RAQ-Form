@@ -36,14 +36,15 @@ computador, copie a pasta inteira.
 
    Cada produto diz quais teores exige, e cada teor tem sua própria faixa:
 
-   | Produto | Teor de álcool na Gasolina | Teor Alcoólico no AEHC | Teor de Biodiesel |
-   |---|---|---|---|
-   | GASOLINA C / ADV | 26% a 28% | — | — |
-   | DIESEL S10 | — | — | 14,5% a 15,5% |
-   | ETANOL ADV | — | 99,3% a 100% | — |
+   | Produto | Massa Específica | Teor Gasolina | Teor AEHC | Teor Biodiesel |
+   |---|---|---|---|---|
+   | GASOLINA C / ADV | 735,00 a 775,00 kg/m³ | 26% a 28% | — | — |
+   | DIESEL S10 | 817,00 a 865,00 kg/m³ | — | — | 14,5% a 15,5% |
+   | ETANOL ADV | 807,60 a 811,20 kg/m³ | — | 99,3% a 100% | — |
 
-   Os teores são percentuais. No formulário, as linhas que não se aplicam ao
-   produto saem com `-`.
+   A massa específica é digitada e impressa em **kg/m³** (`751,20`, não
+   `0,7512`) e os teores em **%**. A unidade sai junto do valor no formulário.
+   As linhas que não se aplicam ao produto saem com `-`.
 5. Em **Cadastros**, cadastre os distribuidores e transportadores. Selecione o
    mais usado e clique em *Definir padrão* — ele virá escolhido sozinho no
    formulário, poupando tempo do operador.

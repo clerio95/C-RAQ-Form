@@ -9,10 +9,10 @@
 /* id, nome, aspecto, cor, massa min/max, usa_gas + min/max,
    usa_aehc + min/max, usa_bio + min/max, ativo */
 static Produto PRODUTOS[4] = {
-    { 1, "GASOLINA C",   "L.I.I.", "AMARELADA",  0.7350, 0.7750, 1, 26.0, 28.0, 0, 0, 0,      0, 0, 0,       1 },
-    { 2, "GASOLINA ADV", "L.I.I.", "ESVERDEADA", 0.7350, 0.7750, 1, 26.0, 28.0, 0, 0, 0,      0, 0, 0,       1 },
-    { 3, "DIESEL S10",   "L.I.I.", "AMARELADA",  0.8170, 0.8650, 0, 0, 0,       0, 0, 0,      1, 14.5, 15.5, 1 },
-    { 4, "ETANOL ADV",   "L.I.I.", "ESVERDEADA", 0.8076, 0.8112, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0,     1 }
+    { 1, "GASOLINA C",   "L.I.I.", "AMARELADA",  735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,      0, 0, 0,       1 },
+    { 2, "GASOLINA ADV", "L.I.I.", "ESVERDEADA", 735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,      0, 0, 0,       1 },
+    { 3, "DIESEL S10",   "L.I.I.", "AMARELADA",  817.00, 865.00, 0, 0, 0,       0, 0, 0,      1, 14.5, 15.5, 1 },
+    { 4, "ETANOL ADV",   "L.I.I.", "ESVERDEADA", 807.60, 811.20, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0,     1 }
 };
 
 static Config CFG = {
@@ -65,10 +65,10 @@ int main(void)
     memset(&f, 0, sizeof f);
     f.config = &CFG;
     preenche_comum(&f);
-    coluna(&f, &PRODUTOS[0], "5.000", "0,7512", "27,0", "",     "");
-    coluna(&f, &PRODUTOS[1], "3.000", "0,7488", "26,5", "",     "");
-    coluna(&f, &PRODUTOS[2], "8.000", "0,8402", "",     "",     "15,0");
-    coluna(&f, &PRODUTOS[3], "6.000", "0,8090", "",     "99,6", "");
+    coluna(&f, &PRODUTOS[0], "5.000", "751,20", "27,0", "",     "");
+    coluna(&f, &PRODUTOS[1], "3.000", "748,80", "26,5", "",     "");
+    coluna(&f, &PRODUTOS[2], "8.000", "840,20", "",     "",     "15,0");
+    coluna(&f, &PRODUTOS[3], "6.000", "809,00", "",     "99,6", "");
     if (raq_gera_pdf(&f, "build/exemplo-4-produtos.pdf") != 0) {
         fprintf(stderr, "falha ao gerar exemplo de 4 produtos\n");
         return 1;
@@ -78,7 +78,7 @@ int main(void)
     memset(&f, 0, sizeof f);
     f.config = &CFG;
     preenche_comum(&f);
-    coluna(&f, &PRODUTOS[2], "12.000", "0,8402", "", "", "15,0");
+    coluna(&f, &PRODUTOS[2], "12.000", "840,20", "", "", "15,0");
     if (raq_gera_pdf(&f, "build/exemplo-1-produto.pdf") != 0) {
         fprintf(stderr, "falha ao gerar exemplo de 1 produto\n");
         return 1;
@@ -90,8 +90,8 @@ int main(void)
     preenche_comum(&f);
     str_copy(f.distribuidor, sizeof f.distribuidor,
              "DISTRIBUIDORA NACIONAL DE COMBUSTÍVEIS E LUBRIFICANTES DO NORDESTE S.A.");
-    coluna(&f, &PRODUTOS[0], "5.000", "0,7512", "27,0", "", "");
-    coluna(&f, &PRODUTOS[3], "6.000", "0,8090", "", "99,6", "");
+    coluna(&f, &PRODUTOS[0], "5.000", "751,20", "27,0", "", "");
+    coluna(&f, &PRODUTOS[3], "6.000", "809,00", "", "99,6", "");
     if (raq_gera_pdf(&f, "build/exemplo-2-produtos.pdf") != 0) {
         fprintf(stderr, "falha ao gerar exemplo de 2 produtos\n");
         return 1;
@@ -122,7 +122,8 @@ int main(void)
             /* O ponto é milhar no formato brasileiro, mas quem digita no
                teclado numérico escreve "0.7512" — e isso não pode virar 7512. */
             struct { const char *entrada; double esperado; } n[] = {
-                { "0,7512",   0.7512 },
+                { "751,20",   751.20 },   /* massa específica em kg/m³ */
+                { "751.20",   751.20 },   /* mesma coisa com ponto decimal */
                 { "1.234,50", 1234.50 },
                 { "0.7512",   0.7512 },   /* ponto decimal, 4 casas */
                 { "5.000",    5000.0 },   /* 3 casas: milhar, volume em litros */

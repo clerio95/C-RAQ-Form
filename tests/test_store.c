@@ -49,6 +49,10 @@ int main(void)
     checa(s.produtos[2].bio_max > 15.49 && s.produtos[2].bio_max < 15.51,
           "biodiesel máximo 15,5");
     checa(s.produtos[0].usa_teor_bio == 0, "gasolina não usa teor de biodiesel");
+    checa(s.produtos[0].massa_min > 734.99 && s.produtos[0].massa_min < 735.01,
+          "massa da gasolina semeada em kg/m³");
+    checa(s.produtos[2].massa_min > 816.99 && s.produtos[2].massa_min < 817.01,
+          "massa do diesel semeada em kg/m³");
 
     /* A senha inicial é "admin". */
     {
@@ -80,8 +84,8 @@ int main(void)
     checa(store_add_placa(&s, "ABC1D23") == -1, "placa repetida é recusada");
     checa(store_salva_placas(&s) == 0, "salva placas");
 
-    s.produtos[0].massa_min = 0.7350;
-    s.produtos[0].massa_max = 0.7750;
+    s.produtos[0].massa_min = 735.00;
+    s.produtos[0].massa_max = 775.00;
     checa(store_salva_produtos(&s) == 0, "salva produtos");
 
     /* Relê tudo do zero. */
@@ -100,9 +104,9 @@ int main(void)
     checa_str(r.motoristas[0].rg, "1234567", "RG do motorista");
     checa(r.n_placas == 1, "uma placa");
     checa(r.n_produtos == 4, "quatro produtos relidos");
-    checa(r.produtos[0].massa_min > 0.7349 && r.produtos[0].massa_min < 0.7351,
+    checa(r.produtos[0].massa_min > 734.99 && r.produtos[0].massa_min < 735.01,
           "massa mínima preservada");
-    checa(r.produtos[0].massa_max > 0.7749 && r.produtos[0].massa_max < 0.7751,
+    checa(r.produtos[0].massa_max > 774.99 && r.produtos[0].massa_max < 775.01,
           "massa máxima preservada");
     checa(r.produtos[2].usa_teor_bio == 1, "teor de biodiesel preservado");
     checa(r.produtos[2].bio_min > 14.49 && r.produtos[2].bio_min < 14.51,
@@ -128,6 +132,45 @@ int main(void)
         checa(t.n_analistas == 1, "um analista mesmo com ';' no nome");
         checa_str(t.analistas[0].nome, "MARIA, DA SILVA",
                   "';' trocado por ',' na gravação");
+    }
+
+    /* Um produtos.csv gravado no formato antigo (g/cm³) precisa se converter
+       sozinho na leitura, senão a faixa apareceria como "0,74 kg/m³". */
+    {
+        Store t;
+        FILE *fp;
+        const char *velho = "build/dados-antigo";
+        char cam[256];
+
+        snprintf(cam, sizeof cam, "rm -rf %s && mkdir -p %s", velho, velho);
+        if (system(cam) != 0) { /* segue */ }
+        snprintf(cam, sizeof cam, "%s/produtos.csv", velho);
+        fp = fopen(cam, "wb");
+        checa(fp != NULL, "cria produtos.csv antigo");
+        if (fp) {
+            fputs("id;nome;aspecto_padrao;cor_padrao;massa_min;massa_max;"
+                  "usa_teor_gas;gas_min;gas_max;usa_teor_aehc;aehc_min;"
+                  "aehc_max;ativo\n", fp);
+            fputs("1;GASOLINA C;L.I.I.;AMARELADA;0.7350;0.7750;1;26.0;28.0;"
+                  "0;0.0;0.0;1\n", fp);
+            fclose(fp);
+        }
+
+        checa(store_carrega(&t, velho) == 0, "carrega cadastro antigo");
+        checa(t.n_produtos == 1, "um produto no arquivo antigo");
+        checa(t.produtos[0].massa_min > 734.99 && t.produtos[0].massa_min < 735.01,
+              "massa mínima convertida para kg/m³");
+        checa(t.produtos[0].massa_max > 774.99 && t.produtos[0].massa_max < 775.01,
+              "massa máxima convertida para kg/m³");
+        checa(t.produtos[0].usa_teor_gas == 1, "teor de gasolina preservado na migração");
+
+        /* A conversão é gravada, então reler não converte de novo. */
+        {
+            Store t2;
+            checa(store_carrega(&t2, velho) == 0, "recarrega já migrado");
+            checa(t2.produtos[0].massa_min > 734.99 && t2.produtos[0].massa_min < 735.01,
+                  "migração não se repete");
+        }
     }
 
     if (falhas) { fprintf(stderr, "%d verificação(ões) falharam\n", falhas); return 1; }

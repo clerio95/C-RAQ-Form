@@ -50,13 +50,15 @@ Aplicabilidade das linhas de análise:
 
 | Produto | Massa Esp. | Teor Gasolina | Teor AEHC | Teor Biodiesel |
 |---|---|---|---|---|
-| GASOLINA C | ✔ | ✔ | — | — |
-| GASOLINA ADV | ✔ | ✔ | — | — |
-| DIESEL S10 | ✔ | — | — | ✔ (14,5% a 15,5%) |
-| ETANOL ADV | ✔ | — | ✔ | — |
+| GASOLINA C | ✔ 735,00–775,00 | ✔ | — | — |
+| GASOLINA ADV | ✔ 735,00–775,00 | ✔ | — | — |
+| DIESEL S10 | ✔ 817,00–865,00 | — | — | ✔ (14,5% a 15,5%) |
+| ETANOL ADV | ✔ 807,60–811,20 | — | ✔ | — |
 
-Os três teores são percentuais; a faixa exibida ao lado do campo sai com `%`.
-Toda a aplicabilidade e as faixas são editáveis pelo admin, por produto.
+A massa específica é em **kg/m³** com 2 casas (`751,20`); os três teores são
+percentuais. A unidade acompanha o valor tanto na faixa exibida ao lado do
+campo quanto na célula impressa no formulário. Toda a aplicabilidade e as
+faixas são editáveis pelo admin, por produto.
 
 Células não aplicáveis são impressas com `-`.
 
@@ -134,9 +136,9 @@ Acentuação: fonte base Helvetica com `WinAnsiEncoding` cobre todo o português
 1. **Placa** — uma placa por entrega, escolhida da lista ou cadastrada na hora.
 2. **Data** — formato `dd/mm/aaaa`.
 3. **Volume** — número inteiro em litros.
-4. **Massa Específica** — decimal com 4 casas (ex.: `0,7512`); a unidade é a que
-   o admin usar na faixa.
-5. **Teores de álcool** — percentual com 1 casa (ex.: `27,0`).
+4. **Massa Específica** — kg/m³ com 2 casas (ex.: `751,20`), impressa como
+   `751,20 kg/m³`.
+5. **Teores** — percentual com 1 casa (ex.: `27,0`), impresso como `27,0%`.
 6. **Assinatura** — linha deixada em branco para assinar à mão.
 7. **CNPJ** — formatado automaticamente e conferido pelo dígito verificador;
    dígito inválido gera aviso, não bloqueio.
