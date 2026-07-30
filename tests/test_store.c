@@ -1,0 +1,125 @@
+/* test_store.c — ida e volta dos cadastros em disco.
+
+   Roda no Linux, sem GUI: é o que dá para verificar automaticamente da parte
+   que a tela do Windows usa. Confere que gravar e reler devolve os mesmos
+   dados, incluindo acentos e números com vírgula. */
+#include "store.h"
+#include "util.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int falhas;
+
+static void checa(int cond, const char *msg)
+{
+    if (!cond) { fprintf(stderr, "FALHOU: %s\n", msg); falhas++; }
+}
+
+static void checa_str(const char *obtido, const char *esperado, const char *msg)
+{
+    if (strcmp(obtido, esperado)) {
+        fprintf(stderr, "FALHOU: %s — obtido \"%s\", esperado \"%s\"\n",
+                msg, obtido, esperado);
+        falhas++;
+    }
+}
+
+int main(void)
+{
+    const char *dir = "build/dados-teste";
+    Store s, r;
+    char cmd[256];
+
+    snprintf(cmd, sizeof cmd, "rm -rf %s", dir);
+    if (system(cmd) != 0) { /* pasta pode não existir ainda */ }
+
+    /* Primeira carga: cria a pasta e semeia os quatro produtos padrão. */
+    checa(store_carrega(&s, dir) == 0, "store_carrega inicial");
+    checa(s.n_produtos == 4, "quatro produtos semeados");
+    checa_str(s.produtos[0].nome, "GASOLINA C", "primeiro produto");
+    checa_str(s.produtos[0].cor_padrao, "AMARELADA", "cor da gasolina C");
+    checa_str(s.produtos[1].cor_padrao, "ESVERDEADA", "cor da gasolina ADV");
+    checa(s.produtos[2].usa_teor_gas == 0, "diesel não usa teor de gasolina");
+    checa(s.produtos[3].usa_teor_aehc == 1, "etanol usa teor AEHC");
+
+    /* A senha inicial é "admin". */
+    {
+        char h[64];
+        senha_hash("admin", h, sizeof h);
+        checa_str(s.config.senha_hash, h, "hash da senha inicial");
+        senha_hash("outra", h, sizeof h);
+        checa(strcmp(s.config.senha_hash, h) != 0, "senha errada não confere");
+    }
+
+    /* Grava dados com acento e vírgula decimal. */
+    str_copy(s.config.razao_social, sizeof s.config.razao_social,
+             "AUTO POSTO SÃO JOSÉ LTDA");
+    str_copy(s.config.cidade_estado, sizeof s.config.cidade_estado, "RECIFE/PE");
+    str_copy(s.config.pasta_saida, sizeof s.config.pasta_saida, "Formularios");
+    checa(store_salva_config(&s) == 0, "salva config");
+
+    checa(store_add_empresa(s.distribuidores, &s.n_distribuidores,
+                            "IPIRANGA PRODUTOS DE PETRÓLEO S.A.",
+                            "33337122000127") == 0, "add distribuidor");
+    s.distribuidores[0].padrao = 1;
+    checa(store_salva_distribuidores(&s) == 0, "salva distribuidores");
+
+    checa(store_add_motorista(&s, "JOSÉ ANTÔNIO DA SILVA", "1234567") == 0,
+          "add motorista");
+    checa(store_salva_motoristas(&s) == 0, "salva motoristas");
+
+    checa(store_add_placa(&s, "ABC1D23") == 0, "add placa");
+    checa(store_add_placa(&s, "ABC1D23") == -1, "placa repetida é recusada");
+    checa(store_salva_placas(&s) == 0, "salva placas");
+
+    s.produtos[0].massa_min = 0.7350;
+    s.produtos[0].massa_max = 0.7750;
+    checa(store_salva_produtos(&s) == 0, "salva produtos");
+
+    /* Relê tudo do zero. */
+    checa(store_carrega(&r, dir) == 0, "store_carrega releitura");
+    checa_str(r.config.razao_social, "AUTO POSTO SÃO JOSÉ LTDA", "razão social com acento");
+    checa_str(r.config.cidade_estado, "RECIFE/PE", "cidade/estado");
+    checa(r.n_distribuidores == 1, "um distribuidor");
+    checa_str(r.distribuidores[0].nome, "IPIRANGA PRODUTOS DE PETRÓLEO S.A.",
+              "nome do distribuidor com acento");
+    checa_str(r.distribuidores[0].cnpj, "33.337.122/0001-27", "CNPJ formatado");
+    checa(r.distribuidores[0].padrao == 1, "distribuidor padrão preservado");
+    checa(store_indice_padrao(r.distribuidores, r.n_distribuidores) == 0,
+          "índice do padrão");
+    checa(r.n_motoristas == 1, "um motorista");
+    checa_str(r.motoristas[0].nome, "JOSÉ ANTÔNIO DA SILVA", "nome do motorista");
+    checa_str(r.motoristas[0].rg, "1234567", "RG do motorista");
+    checa(r.n_placas == 1, "uma placa");
+    checa(r.n_produtos == 4, "quatro produtos relidos");
+    checa(r.produtos[0].massa_min > 0.7349 && r.produtos[0].massa_min < 0.7351,
+          "massa mínima preservada");
+    checa(r.produtos[0].massa_max > 0.7749 && r.produtos[0].massa_max < 0.7751,
+          "massa máxima preservada");
+
+    /* Remoção desloca a lista corretamente. */
+    store_add_placa(&r, "XYZ4E56");
+    store_add_placa(&r, "QRS7T89");
+    checa(r.n_placas == 3, "três placas");
+    store_remove(r.placas, &r.n_placas, sizeof(Placa), 1);
+    checa(r.n_placas == 2, "duas placas após remover");
+    checa_str(r.placas[0].placa, "ABC1D23", "placa 0 após remoção");
+    checa_str(r.placas[1].placa, "QRS7T89", "placa 1 após remoção");
+
+    /* Campo com ';' não pode quebrar o CSV. */
+    {
+        Store t;
+        store_add_analista(&r, "MARIA; DA SILVA");
+        checa(store_salva_analistas(&r) == 0, "salva analistas");
+        checa(store_carrega(&t, dir) == 0, "recarrega após ';'");
+        checa(t.n_analistas == 1, "um analista mesmo com ';' no nome");
+        checa_str(t.analistas[0].nome, "MARIA, DA SILVA",
+                  "';' trocado por ',' na gravação");
+    }
+
+    if (falhas) { fprintf(stderr, "%d verificação(ões) falharam\n", falhas); return 1; }
+    printf("ok: cadastros gravam e releem corretamente\n");
+    return 0;
+}
