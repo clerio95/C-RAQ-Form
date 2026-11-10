@@ -2,21 +2,36 @@
 #
 #   git tag v1.1.0 && git push origin v1.1.0
 #
+# Também dá para rodar à mão para uma tag que já existe (ex.: o push da tag
+# não disparou o workflow):
+#
+#   gh workflow run release -f tag=v1.1.0
+#
 # O instalador (install.ps1) baixa sempre o RAQ.exe do release mais recente.
 name: release
 
 on:
   push:
     tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag já existente, ex.: v1.1.0'
+        required: true
 
 permissions:
   contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   release:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
 
       - name: Instala mingw-w64
         run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 make
@@ -25,7 +40,7 @@ jobs:
         run: make test
 
       - name: Compila RAQ.exe com a versão da tag
-        run: make windows VERSION="${GITHUB_REF_NAME#v}"
+        run: make windows VERSION="${TAG#v}"
 
       - name: SHA-256
         run: |
@@ -37,6 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/RAQ.exe dist/RAQ.exe.sha256 \
-            --title "RAQ $GITHUB_REF_NAME" \
+          gh release create "$TAG" dist/RAQ.exe dist/RAQ.exe.sha256 \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "RAQ $TAG" \
             --notes "Instalar ou atualizar (PowerShell do Windows): \`irm https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.ps1 | iex\`"

@@ -196,7 +196,15 @@ git push origin v1.1.0
 ```
 
 O workflow `release.yml` roda os testes, compila o `RAQ.exe` com a versão da
-tag, calcula o SHA-256 e cria o release com os dois arquivos. O comando de
+tag, calcula o SHA-256 e cria o release com os dois arquivos. Se o push da
+tag não disparar o workflow (acontece no primeiro push de um repositório
+vazio), rode-o à mão para a tag que já existe:
+
+```fish
+gh workflow run release -R clerio95/C-RAQ-Form -f tag=v1.1.0
+```
+
+ O comando de
 instalação sempre pega o release mais recente. O repositório precisa ser
 **público** para o `irm` funcionar sem login.
 
