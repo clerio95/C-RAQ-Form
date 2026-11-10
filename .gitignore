@@ -1,2 +1,16 @@
+# Saída de compilação
 build/
 dist/
+
+# Dados de um posto real nunca entram no repositório: cadastros, senha,
+# histórico e formulários gerados ficam só no computador do posto.
+dados/
+dados-*/
+Formularios/
+Formularios RAQ/
+historico.csv
+config.ini
+
+# Configuração local do editor/assistente
+.claude/settings.local.json
+.claude/*.tmp*

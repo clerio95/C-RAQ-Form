@@ -1,7 +1,10 @@
 # RAQ Form Filler
 
-Programa em C puro que preenche e gera o **Formulário para Registro da Análise
-da Qualidade** em PDF, pronto para imprimir e assinar.
+Programa para Windows que preenche e gera o **Formulário para Registro da
+Análise da Qualidade** em PDF, pronto para imprimir e assinar. Serve para
+qualquer posto revendedor: nada de um posto específico vem embutido. Os
+dados do posto, os produtos, os analistas, os distribuidores e os
+transportadores são cadastrados na primeira execução.
 
 Feito para ser usado por quem não tem prática com computador: abre já na tela
 do formulário, quase tudo vem preenchido, e o que falta é marcar os produtos e
@@ -9,81 +12,97 @@ digitar os números.
 
 ## Instalação
 
-Copie a pasta `dist` inteira para o computador do posto. É só isso — o `RAQ.exe`
-não depende de nada instalado, nem de .NET, nem de leitor de PDF para gerar o
-arquivo.
+No computador do posto, abra o **PowerShell** (menu Iniciar → digite
+"PowerShell") e cole:
 
-Na primeira execução o programa cria sozinho, ao lado do `.exe`:
-
-```
-dados/            cadastros e configuração (arquivos de texto)
-Formularios/      os PDFs gerados
+```powershell
+irm https://raw.githubusercontent.com/clerio95/C-RAQ-Form/main/install.ps1 | iex
 ```
 
-Para fazer backup, copie a pasta `dados`. Para levar tudo para outro
-computador, copie a pasta inteira.
+Não precisa ser administrador. O instalador:
 
-## Atualizando o programa
+- baixa o `RAQ.exe` do release mais recente do GitHub e confere o SHA-256;
+- instala em `%LOCALAPPDATA%\Programs\RAQ` (pasta do próprio usuário);
+- cria atalhos na Área de Trabalho e no Menu Iniciar;
+- registra o programa em *Configurações → Aplicativos*, para desinstalar por lá;
+- abre o programa no fim.
 
-**Nada precisa ser reconfigurado.** Para trocar de versão, substitua só o
-`RAQ.exe` e mantenha a pasta `dados` no lugar — ou, vindo de outro computador,
-copie a pasta `dados` antiga para junto do novo executável. Todos os cadastros,
-os dados do posto, a senha e o histórico continuam valendo.
+O `RAQ.exe` é um executável único: não depende de .NET, de bibliotecas nem de
+leitor de PDF para gerar o arquivo.
 
-Os arquivos se atualizam sozinhos na primeira abertura, quando faz falta:
+**Atualizar** é rodar o mesmo comando de novo. Cadastros, senha e histórico
+ficam onde estão.
 
-| Mudança | O que acontece com o arquivo antigo |
-|---|---|
-| Massa específica passou de g/cm³ para kg/m³ | `0,7350` vira `735,00` na leitura, e o arquivo é regravado já convertido |
-| Linha "Teor de Biodiesel" | produtos anteriores à mudança adotam o padrão do produto — o DIESEL S10 vem com 14,5% a 15,5% |
-| Demais cadastros | formato inalterado, lidos como estão |
+Sem acesso ao PowerShell, também funciona copiar o `RAQ.exe` (página de
+*Releases* do GitHub) para uma pasta com permissão de escrita, como `C:\RAQ`, e
+abrir dali.
 
-A conversão acontece uma vez só; reabrir o programa não converte de novo.
-Só vale a pena apagar algum arquivo de `dados` se você quiser mesmo voltar aos
-valores de fábrica daquele cadastro.
+## Primeira execução
 
-## Primeiro uso (administrador)
+Na primeira vez que o programa abre, um assistente pede, em 7 passos:
 
-1. Abra o `RAQ.exe`.
-2. Clique em **Administração**. A senha inicial é `admin`.
-3. Preencha os **dados fixos do posto** (razão social, CNPJ, endereço, bairro,
-   cidade/estado) e clique em *Salvar dados do posto*. Esses dados vão no
+1. **Senha do administrador** — protege a tela de Administração. Não existe
+   senha padrão.
+2. **Dados do posto** — razão social, CNPJ, endereço, bairro, cidade/UF. Vão no
    cabeçalho de todo formulário.
-4. Em **Produtos**, confira os padrões e as faixas de cada produto (aspecto,
-   cor, massa específica mínima/máxima, teores). Já vem preenchido com
-   GASOLINA C, GASOLINA ADV, DIESEL S10 e ETANOL ADV.
+3. **Produtos** — marque os que o posto vende, entre gasolina comum,
+   aditivada e premium, etanol hidratado e aditivado, diesel S10 e S500.
+4. **Analistas** — quem faz a análise no recebimento.
+5. **Distribuidores** — de quem o posto compra (nome e CNPJ).
+6. **Transportadores** — quem faz o transporte (nome e CNPJ).
+7. **Pasta dos PDFs e impressora** — a pasta padrão é
+   `Documentos\Formularios RAQ`.
 
-   Cada produto diz quais teores exige, e cada teor tem sua própria faixa:
+Os passos 4 a 6 podem ficar em branco: os cadastros também podem ser feitos
+depois, no botão **Novo...** do formulário ou em **Administração**. Cancelar o
+assistente não grava nada, e ele recomeça na próxima abertura.
 
-   | Produto | Massa Específica | Teor Gasolina | Teor AEHC | Teor Biodiesel |
-   |---|---|---|---|---|
-   | GASOLINA C / ADV | 735,00 a 775,00 kg/m³ | 26% a 28% | — | — |
-   | DIESEL S10 | 817,00 a 865,00 kg/m³ | — | — | 14,5% a 15,5% |
-   | ETANOL ADV | 807,60 a 811,20 kg/m³ | — | 99,3% a 100% | — |
+### Faixas dos produtos
 
-   A massa específica é digitada e impressa em **kg/m³** (`751,20`, não
-   `0,7512`) e os teores em **%**. A unidade sai junto do valor no formulário.
-   As linhas que não se aplicam ao produto saem com `-`.
-5. Confira a **Impressora**, logo abaixo da pasta dos PDFs. A lista traz as
-   impressoras instaladas, inclusive as da rede.
+As faixas que o assistente sugere são um ponto de partida e **precisam ser
+conferidas com a legislação vigente**. Os teores de mistura mudam por decisão
+do governo:
 
-   - `(usar a padrão do Windows)` — segue o que estiver marcado como padrão no
-     Windows. O nome da impressora atual aparece entre parênteses na própria
-     opção.
-   - escolher uma impressora pelo nome **fixa** ela. Vale a pena numa rede:
-     assim o formulário não passa a sair no "Microsoft Print to PDF" se
-     alguém mexer no padrão do Windows.
+| Produto | Massa específica | Teor sugerido |
+|---|---|---|
+| Gasolina comum / aditivada | 735,00 a 775,00 kg/m³ | álcool 31% a 33% (E32, desde 01/08/2026) |
+| Gasolina premium | 735,00 a 775,00 kg/m³ | álcool 24% a 26% |
+| Etanol hidratado / aditivado | 805,20 a 811,20 kg/m³ | teor alcoólico 92,5% a 94,6% |
+| Diesel S10 / S500 | 817,00 a 865,00 kg/m³ | biodiesel 14,5% a 15,5% (B15) |
 
-   Na hora de imprimir, o programa mostra o nome da impressora na pergunta
-   *"Deseja imprimir agora em ...?"*, então o operador sempre vê para onde o
-   papel vai antes de confirmar.
-6. Em **Cadastros**, cadastre os distribuidores e transportadores. Selecione o
-   mais usado e clique em *Definir padrão* — ele virá escolhido sozinho no
-   formulário, poupando tempo do operador.
-7. Troque a senha em *Alterar senha*.
+Quando a mistura mudar, ajuste em **Administração → Produtos → Editar...**. Um
+valor fora da faixa só deixa o campo vermelho e pede confirmação, mas nunca
+impede de gerar o formulário.
 
-> Ao **incluir ou excluir um produto**, feche e abra o programa para a tela de
-> preenchimento se ajustar.
+## Administração
+
+Botão **Administração**, no canto do formulário, com a senha criada na
+primeira execução. Ali se altera:
+
+- dados do posto, pasta dos PDFs e impressora;
+- produtos: nome, aspecto e cor padrão, faixas, quais teores cada um exige;
+- cadastros: distribuidores, transportadores, placas, motoristas e analistas.
+  *Definir padrão* escolhe o distribuidor/transportador que já vem
+  selecionado no formulário;
+- a senha.
+
+Incluir, excluir ou renomear produto atualiza a tela do formulário na hora.
+
+**Impressora:** `(usar a padrão do Windows)` segue a impressora padrão do
+Windows. Escolher uma pelo nome **fixa** essa impressora, o que vale a pena
+numa rede para o formulário não ir parar no "Microsoft Print to PDF". Antes de
+imprimir, o programa sempre mostra o nome da impressora na pergunta.
+
+### Esqueci a senha
+
+Abra a pasta de dados (`%LOCALAPPDATA%\Programs\RAQ\dados`), edite o
+`config.ini` no Bloco de Notas e apague a linha que começa com `senha_hash=`.
+Na próxima vez que clicar em Administração, o programa pede uma senha nova.
+Nenhum cadastro é perdido.
+
+A senha é guardada como hash PBKDF2-SHA256 com sal. Ela impede o operador de
+mexer na configuração, mas não substitui as permissões do Windows: quem tem
+acesso à pasta de dados consegue redefini-la, como descrito acima.
 
 ## Uso no dia a dia (operador)
 
@@ -100,13 +119,16 @@ valores de fábrica daquele cadastro.
 5. **Responsável pelo Preenchimento** vem com o nome do analista e pode ser
    trocado.
 6. Clique em **Gerar formulário**. O PDF é salvo e o programa pergunta se você
-   quer imprimir agora.
+   quer imprimir agora. O botão **Abrir pasta dos PDFs** mostra os formulários
+   já gerados.
 
 A assinatura é feita à mão, no papel.
 
 ## Onde ficam os dados
 
-Tudo em `dados/`, em arquivos de texto separados por `;` que abrem no Excel:
+Tudo em `dados\`, ao lado do `RAQ.exe` (instalado:
+`%LOCALAPPDATA%\Programs\RAQ\dados`). São arquivos de texto separados por
+`;` que abrem no Excel:
 
 | Arquivo | Conteúdo |
 |---|---|
@@ -120,19 +142,63 @@ O `historico.csv` serve para consultar depois sem abrir PDF: registra data,
 arquivo, nota fiscal, distribuidor, transportador, placa, motorista, analista,
 produtos e volumes.
 
+**Backup:** copie a pasta `dados`. Para levar tudo para outro computador,
+instale lá e substitua a pasta `dados` pela cópia.
+
+Nada disso vai para o repositório: o `.gitignore` exclui `dados/` e os PDFs.
+
+## Atualizando de uma versão anterior
+
+Nada precisa ser reconfigurado. Os arquivos antigos são lidos e, quando faz
+falta, convertidos uma única vez:
+
+| Mudança | O que acontece |
+|---|---|
+| Massa específica de g/cm³ para kg/m³ | `0,7350` vira `735,00` e o arquivo é regravado convertido |
+| Linha "Teor de Biodiesel" | produto sem a coluna adota o padrão do catálogo pelo nome (ex.: DIESEL S10 → 14,5% a 15,5%) |
+| Senha em formato antigo | continua valendo e é regravada no formato novo no próximo acesso à Administração |
+| Senha ainda `admin` | o programa exige criar uma senha nova no próximo acesso |
+| Faixas já cadastradas | **não são alteradas**. Confira o teor de álcool da gasolina (E32) |
+
+## Desinstalar
+
+*Configurações → Aplicativos → RAQ → Desinstalar*, ou no PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/clerio95/C-RAQ-Form/main/install.ps1))) -Desinstalar
+```
+
+O desinstalador pergunta antes de apagar os dados. Os PDFs nunca são apagados.
+
 ## Compilação
 
 Ambiente de desenvolvimento: Debian com `mingw-w64`.
 
 ```fish
-make                # gera dist/RAQ.exe (cross-compile para Windows)
-make test           # roda os testes no Linux (PDF de exemplo + cadastros)
-make widths         # regenera as larguras da fonte a partir dos AFM
+make                    # gera dist/RAQ.exe (cross-compile para Windows)
+make VERSION=1.2.0      # idem, carimbando a versão no .exe
+make test               # roda os testes no Linux (PDF de exemplo + cadastros)
+make widths             # regenera as larguras da fonte a partir dos AFM
 make clean
 ```
 
-O `make test` grava PDFs de exemplo em `build/` — útil para conferir o layout
+O `make test` grava PDFs de exemplo em `build/`, úteis para conferir o layout
 sem precisar de Windows.
+
+## Publicando uma versão
+
+O GitHub Actions compila e testa a cada push (`.github/workflows/build.yml`).
+Para publicar uma versão que o instalador vai baixar:
+
+```fish
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+O workflow `release.yml` roda os testes, compila o `RAQ.exe` com a versão da
+tag, calcula o SHA-256 e cria o release com os dois arquivos. O comando de
+instalação sempre pega o release mais recente. O repositório precisa ser
+**público** para o `irm` funcionar sem login.
 
 ## Como o código está organizado
 
@@ -141,6 +207,7 @@ src/
   main.c          entrada, laço de mensagens
   ui_form.c       tela do formulário
   ui_admin.c      tela de administração e editor de produto
+  ui_setup.c      assistente da primeira execução
   win_util.c      ponte UTF-8 <-> UTF-16 e helpers de controle Win32
   model.h         estruturas do formulário e dos cadastros
   store.c         leitura/gravação dos CSV
@@ -148,7 +215,8 @@ src/
   backend_pdf.c   desenho -> arquivo PDF
   backend_gdi.c   desenho -> impressora
   pdf.c           escritor de PDF mínimo
-  util.c          strings, datas, CNPJ, números no formato brasileiro
+  util.c          strings, datas, CNPJ, números no formato brasileiro, senha
+  sha256.c        SHA-256 / PBKDF2 para o hash da senha
 ```
 
 Duas decisões que explicam o resto:

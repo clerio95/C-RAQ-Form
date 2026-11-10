@@ -14,11 +14,13 @@ e gerar o PDF pronto para impressão e assinatura.
 | Registro | `historico.csv` com uma linha por formulário gerado |
 | Armazenamento | Arquivos CSV em texto puro, ao lado do `.exe` |
 | Colunas de produto | Dinâmicas: a tabela é desenhada com N colunas = nº de produtos marcados |
-| Lista de produtos | Editável pelo admin (pré-carregada com os 4 atuais) |
+| Lista de produtos | Escolhida no assistente da primeira execução, a partir de um catálogo; editável pelo admin |
 | Faixas min/máx | Por produto, definidas pelo admin |
 | Fora da faixa | Avisa (campo vermelho + confirmação), mas permite gerar |
 | Aspecto / Cor | Padrão pré-selecionado, editável pelo analista |
-| Admin | Botão discreto + senha, dentro do mesmo `.exe` (senha com hash no config) |
+| Admin | Botão discreto + senha, dentro do mesmo `.exe` (PBKDF2-SHA256 com sal no config) |
+| Primeira execução | Assistente: senha, posto, produtos, analistas, distribuidores, transportadores, pasta e impressora |
+| Instalação | `irm .../install.ps1 \| iex` → `%LOCALAPPDATA%\Programs\RAQ`, sem admin |
 
 ## 2. Layout da tabela gerada
 
@@ -50,10 +52,10 @@ Aplicabilidade das linhas de análise:
 
 | Produto | Massa Esp. | Teor Gasolina | Teor AEHC | Teor Biodiesel |
 |---|---|---|---|---|
-| GASOLINA C | ✔ 735,00–775,00 | ✔ | — | — |
-| GASOLINA ADV | ✔ 735,00–775,00 | ✔ | — | — |
-| DIESEL S10 | ✔ 817,00–865,00 | — | — | ✔ (14,5% a 15,5%) |
-| ETANOL ADV | ✔ 807,60–811,20 | — | ✔ | — |
+| GASOLINA COMUM / ADITIVADA | ✔ 735,00–775,00 | ✔ (31% a 33%, E32) | — | — |
+| GASOLINA PREMIUM | ✔ 735,00–775,00 | ✔ (24% a 26%) | — | — |
+| ETANOL HIDRATADO / ADITIVADO | ✔ 805,20–811,20 | — | ✔ (92,5% a 94,6%) | — |
+| DIESEL S10 / S500 | ✔ 817,00–865,00 | — | — | ✔ (14,5% a 15,5%) |
 
 A massa específica é em **kg/m³** com 2 casas (`751,20`); os três teores são
 percentuais. A unidade acompanha o valor tanto na faixa exibida ao lado do
@@ -62,8 +64,10 @@ faixas são editáveis pelo admin, por produto.
 
 Células não aplicáveis são impressas com `-`.
 
-Cores padrão: `AMARELADA` para GASOLINA C e DIESEL S10; `ESVERDEADA` para
-GASOLINA ADV e ETANOL ADV. Aspecto padrão: `L.I.I.` para todos.
+Cores padrão do catálogo: `AMARELADA` (gasolinas comum e premium, diesel S10),
+`ESVERDEADA` (aditivados), `INCOLOR` (etanol hidratado), `VERMELHA` (diesel
+S500). Aspecto padrão: `L.I.I.` para todos. Uma cor padrão fora da lista do
+formulário é acrescentada à lista daquele campo.
 
 ## 3. Arquivos de dados (CSV, `;` como separador, UTF-8)
 
@@ -74,7 +78,8 @@ dados/
   historico.csv       data_hora;arquivo;nf;data_coleta;distribuidor;transportador;
                       placa;motorista;analista;produtos;volumes
   produtos.csv        id;nome;aspecto_padrao;cor_padrao;massa_min;massa_max;
-                      usa_teor_gas;gas_min;gas_max;usa_teor_aehc;aehc_min;aehc_max;ativo
+                      usa_teor_gas;gas_min;gas_max;usa_teor_aehc;aehc_min;aehc_max;ativo;
+                      usa_teor_bio;bio_min;bio_max
   distribuidores.csv  id;nome;cnpj;padrao
   transportadores.csv id;nome;cnpj;padrao
   placas.csv          id;placa
@@ -144,6 +149,8 @@ Acentuação: fonte base Helvetica com `WinAnsiEncoding` cobre todo o português
    dígito inválido gera aviso, não bloqueio.
 8. **Nome do arquivo** — `RAQ_2026-07-30_NF123456.pdf`, com sufixo `_2`, `_3`…
    se já existir.
-9. **Senha admin** — padrão `admin`, alterável na tela de administração.
+9. **Senha admin** — criada no assistente da primeira execução; não existe
+   senha padrão. Apagar `senha_hash` do `config.ini` faz o programa pedir uma
+   senha nova.
 10. **Histórico** — gravado em `historico.csv`; abrível em Excel. Sem tela de
     consulta dentro do programa por enquanto.

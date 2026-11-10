@@ -1,0 +1,42 @@
+# Publica um release quando uma tag vX.Y.Z é enviada:
+#
+#   git tag v1.1.0 && git push origin v1.1.0
+#
+# O instalador (install.ps1) baixa sempre o RAQ.exe do release mais recente.
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instala mingw-w64
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 make
+
+      - name: Testes (Linux)
+        run: make test
+
+      - name: Compila RAQ.exe com a versão da tag
+        run: make windows VERSION="${GITHUB_REF_NAME#v}"
+
+      - name: SHA-256
+        run: |
+          cd dist
+          sha256sum RAQ.exe | cut -d' ' -f1 > RAQ.exe.sha256
+          cat RAQ.exe.sha256
+
+      - name: Publica o release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/RAQ.exe dist/RAQ.exe.sha256 \
+            --title "RAQ $GITHUB_REF_NAME" \
+            --notes "Instalar ou atualizar (PowerShell do Windows): \`irm https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.ps1 | iex\`"
