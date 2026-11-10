@@ -90,13 +90,46 @@ if ($env:RAQ_URL) {
 New-Item -ItemType Directory -Force -Path $Pasta | Out-Null
 $Novo = Join-Path $Pasta 'RAQ.exe.novo'
 
+# Status HTTP de uma falha, ou 0 se a falha foi de conexao.
+function Status-Http($erro) {
+    $r = $erro.Exception.Response
+    if ($r -and $r.StatusCode) { return [int]$r.StatusCode }
+    return 0
+}
+
+# Tenta algumas vezes: conexao que cai no meio e comum em rede de posto, e
+# o .NET do PowerShell 5.1 as vezes fecha a conexao reaproveitada no
+# redirecionamento do GitHub. Na ultima tentativa usa o WebClient.
+function Baixa([string]$origem, [string]$destino) {
+    for ($i = 1; $i -le 4; $i++) {
+        try {
+            if ($i -lt 4) {
+                Invoke-WebRequest -Uri $origem -OutFile $destino -UseBasicParsing
+            } else {
+                (New-Object Net.WebClient).DownloadFile($origem, $destino)
+            }
+            return $null
+        } catch {
+            $falha = $_
+            if ((Status-Http $falha) -eq 404) { return $falha }
+            Escreve "  tentativa $i falhou: $($falha.Exception.Message)" 'DarkYellow'
+            Start-Sleep -Seconds (2 * $i)
+        }
+    }
+    return $falha
+}
+
 Escreve "Baixando $Url"
-try {
-    Invoke-WebRequest -Uri $Url -OutFile $Novo -UseBasicParsing
-} catch {
+$falha = Baixa $Url $Novo
+if ($falha) {
     Remove-Item -LiteralPath $Novo -Force -ErrorAction SilentlyContinue
-    Escreve "Nao foi possivel baixar o programa: $($_.Exception.Message)" 'Red'
-    Escreve 'Confira a conexao com a internet e tente de novo.' 'Red'
+    if ((Status-Http $falha) -eq 404) {
+        Escreve 'Nenhuma versao do programa foi publicada ainda (release nao encontrado).' 'Red'
+        Escreve "Confira em https://github.com/$Repo/releases" 'Red'
+    } else {
+        Escreve "Nao foi possivel baixar o programa: $($falha.Exception.Message)" 'Red'
+        Escreve 'Confira a conexao com a internet (ou o antivirus/proxy) e tente de novo.' 'Red'
+    }
     return
 }
 
