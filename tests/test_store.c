@@ -3,6 +3,7 @@
    Roda no Linux, sem GUI: é o que dá para verificar automaticamente da parte
    que a tela do Windows usa. Confere que gravar e reler devolve os mesmos
    dados, incluindo acentos e números com vírgula. */
+#include "sha256.h"
 #include "store.h"
 #include "util.h"
 
@@ -35,32 +36,73 @@ int main(void)
     snprintf(cmd, sizeof cmd, "rm -rf %s", dir);
     if (system(cmd) != 0) { /* pasta pode não existir ainda */ }
 
-    /* Primeira carga: cria a pasta e semeia os quatro produtos padrão. */
+    /* Primeira carga: cria a pasta e semeia o catálogo de produtos. */
     checa(store_carrega(&s, dir) == 0, "store_carrega inicial");
-    checa(s.n_produtos == 4, "quatro produtos semeados");
-    checa_str(s.produtos[0].nome, "GASOLINA C", "primeiro produto");
-    checa_str(s.produtos[0].cor_padrao, "AMARELADA", "cor da gasolina C");
-    checa_str(s.produtos[1].cor_padrao, "ESVERDEADA", "cor da gasolina ADV");
-    checa(s.produtos[2].usa_teor_gas == 0, "diesel não usa teor de gasolina");
-    checa(s.produtos[3].usa_teor_aehc == 1, "etanol usa teor AEHC");
-    checa(s.produtos[2].usa_teor_bio == 1, "diesel usa teor de biodiesel");
-    checa(s.produtos[2].bio_min > 14.49 && s.produtos[2].bio_min < 14.51,
+    checa(s.n_produtos == store_catalogo_n(), "catálogo semeado");
+    checa_str(s.produtos[0].nome, "GASOLINA COMUM", "primeiro produto");
+    checa_str(s.produtos[0].cor_padrao, "AMARELADA", "cor da gasolina comum");
+    checa(s.produtos[0].gas_min > 30.99 && s.produtos[0].gas_max < 33.01,
+          "gasolina comum na faixa do E32");
+    checa(s.produtos[3].usa_teor_aehc == 1, "etanol hidratado usa teor AEHC");
+    checa(s.produtos[5].usa_teor_gas == 0, "diesel não usa teor de gasolina");
+    checa_str(s.produtos[5].nome, "DIESEL S10", "diesel S10 no catálogo");
+    checa(s.produtos[5].usa_teor_bio == 1, "diesel usa teor de biodiesel");
+    checa(s.produtos[5].bio_min > 14.49 && s.produtos[5].bio_min < 14.51,
           "biodiesel mínimo 14,5");
-    checa(s.produtos[2].bio_max > 15.49 && s.produtos[2].bio_max < 15.51,
+    checa(s.produtos[5].bio_max > 15.49 && s.produtos[5].bio_max < 15.51,
           "biodiesel máximo 15,5");
     checa(s.produtos[0].usa_teor_bio == 0, "gasolina não usa teor de biodiesel");
     checa(s.produtos[0].massa_min > 734.99 && s.produtos[0].massa_min < 735.01,
           "massa da gasolina semeada em kg/m³");
-    checa(s.produtos[2].massa_min > 816.99 && s.produtos[2].massa_min < 817.01,
+    checa(s.produtos[5].massa_min > 816.99 && s.produtos[5].massa_min < 817.01,
           "massa do diesel semeada em kg/m³");
 
-    /* A senha inicial é "admin". */
+    /* Não existe mais senha padrão: a primeira execução cria a senha. */
+    checa(!store_configurado(&s), "instalação nova sem senha");
+    checa(str_empty(s.config.senha_hash), "hash vazio na instalação nova");
+    checa(!senha_confere("admin", s.config.senha_hash), "'admin' não entra sem senha criada");
+    checa(!senha_confere("", s.config.senha_hash), "senha vazia não entra");
+
+    /* Hash novo: confere, recusa a errada, e o sal muda a cada geração. */
     {
-        char h[64];
-        senha_hash("admin", h, sizeof h);
-        checa_str(s.config.senha_hash, h, "hash da senha inicial");
-        senha_hash("outra", h, sizeof h);
-        checa(strcmp(s.config.senha_hash, h) != 0, "senha errada não confere");
+        char h1[SENHA_HASH_MAX], h2[SENHA_HASH_MAX];
+        senha_gera_hash("Posto#2026", h1, sizeof h1);
+        senha_gera_hash("Posto#2026", h2, sizeof h2);
+        checa(strncmp(h1, "pbkdf2-sha256$", 14) == 0, "formato do hash novo");
+        checa(senha_confere("Posto#2026", h1), "senha certa confere");
+        checa(!senha_confere("posto#2026", h1), "senha errada não confere");
+        checa(strcmp(h1, h2) != 0, "sal aleatório muda o hash");
+        checa(!senha_hash_legado(h1), "hash novo não é legado");
+        checa(strlen(h1) < sizeof s.config.senha_hash, "hash cabe no config");
+        str_copy(s.config.senha_hash, sizeof s.config.senha_hash, h1);
+        checa(store_configurado(&s), "configurado após criar senha");
+    }
+
+    /* Hash FNV da versão 1.0 ("admin") ainda entra, e é reconhecido como
+       legado para ser regravado. */
+    checa(senha_confere("admin", "11ea048a30a155f2"), "hash legado confere");
+    checa(!senha_confere("outra", "11ea048a30a155f2"), "hash legado recusa errada");
+    checa(senha_hash_legado("11ea048a30a155f2"), "hash legado reconhecido");
+
+    /* Vetores conhecidos de SHA-256 e PBKDF2-HMAC-SHA256 (RFC 7914 / 6070). */
+    {
+        unsigned char d[32];
+        char hex[65];
+        int k;
+        sha256("abc", 3, d);
+        for (k = 0; k < 32; k++) sprintf(hex + 2 * k, "%02x", d[k]);
+        checa_str(hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                  "sha256(abc)");
+        pbkdf2_sha256((const unsigned char *)"password", 8,
+                      (const unsigned char *)"salt", 4, 1, d);
+        for (k = 0; k < 32; k++) sprintf(hex + 2 * k, "%02x", d[k]);
+        checa_str(hex, "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b",
+                  "pbkdf2 1 iteração");
+        pbkdf2_sha256((const unsigned char *)"password", 8,
+                      (const unsigned char *)"salt", 4, 4096, d);
+        for (k = 0; k < 32; k++) sprintf(hex + 2 * k, "%02x", d[k]);
+        checa_str(hex, "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a",
+                  "pbkdf2 4096 iterações");
     }
 
     /* Grava dados com acento e vírgula decimal. */
@@ -73,8 +115,8 @@ int main(void)
     checa(store_salva_config(&s) == 0, "salva config");
 
     checa(store_add_empresa(s.distribuidores, &s.n_distribuidores,
-                            "IPIRANGA PRODUTOS DE PETRÓLEO S.A.",
-                            "33337122000127") == 0, "add distribuidor");
+                            "DISTRIBUIDORA EXEMPLO DE PETRÓLEO S.A.",
+                            "11222333000181") == 0, "add distribuidor");
     s.distribuidores[0].padrao = 1;
     checa(store_salva_distribuidores(&s) == 0, "salva distribuidores");
 
@@ -97,9 +139,9 @@ int main(void)
     checa_str(r.config.impressora, "HP LaserJet da Rede",
               "impressora fixada preservada");
     checa(r.n_distribuidores == 1, "um distribuidor");
-    checa_str(r.distribuidores[0].nome, "IPIRANGA PRODUTOS DE PETRÓLEO S.A.",
+    checa_str(r.distribuidores[0].nome, "DISTRIBUIDORA EXEMPLO DE PETRÓLEO S.A.",
               "nome do distribuidor com acento");
-    checa_str(r.distribuidores[0].cnpj, "33.337.122/0001-27", "CNPJ formatado");
+    checa_str(r.distribuidores[0].cnpj, "11.222.333/0001-81", "CNPJ formatado");
     checa(r.distribuidores[0].padrao == 1, "distribuidor padrão preservado");
     checa(store_indice_padrao(r.distribuidores, r.n_distribuidores) == 0,
           "índice do padrão");
@@ -107,15 +149,16 @@ int main(void)
     checa_str(r.motoristas[0].nome, "JOSÉ ANTÔNIO DA SILVA", "nome do motorista");
     checa_str(r.motoristas[0].rg, "1234567", "RG do motorista");
     checa(r.n_placas == 1, "uma placa");
-    checa(r.n_produtos == 4, "quatro produtos relidos");
+    checa(r.n_produtos == store_catalogo_n(), "produtos relidos");
+    checa(store_configurado(&r), "senha criada sobrevive à releitura");
     checa(r.produtos[0].massa_min > 734.99 && r.produtos[0].massa_min < 735.01,
           "massa mínima preservada");
     checa(r.produtos[0].massa_max > 774.99 && r.produtos[0].massa_max < 775.01,
           "massa máxima preservada");
-    checa(r.produtos[2].usa_teor_bio == 1, "teor de biodiesel preservado");
-    checa(r.produtos[2].bio_min > 14.49 && r.produtos[2].bio_min < 14.51,
+    checa(r.produtos[5].usa_teor_bio == 1, "teor de biodiesel preservado");
+    checa(r.produtos[5].bio_min > 14.49 && r.produtos[5].bio_min < 14.51,
           "biodiesel mínimo preservado");
-    checa(r.produtos[2].bio_max > 15.49 && r.produtos[2].bio_max < 15.51,
+    checa(r.produtos[5].bio_max > 15.49 && r.produtos[5].bio_max < 15.51,
           "biodiesel máximo preservado");
 
     /* Remoção desloca a lista corretamente. */
@@ -214,7 +257,7 @@ int main(void)
         checa_str(t2.config.razao_social, "POSTO AÇÃO LTDA",
                   "config relida de pasta com acento");
         checa(t2.n_placas == 1, "placa relida de pasta com acento");
-        checa(t2.n_produtos == 4, "produtos semeados em pasta com acento");
+        checa(t2.n_produtos == store_catalogo_n(), "produtos semeados em pasta com acento");
     }
 
     if (falhas) { fprintf(stderr, "%d verificação(ões) falharam\n", falhas); return 1; }

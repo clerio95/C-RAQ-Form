@@ -35,11 +35,17 @@ void  combo_limpa(HWND combo);
 void  combo_add(HWND combo, const char *utf8);
 int   combo_sel(HWND combo);
 void  combo_define_sel(HWND combo, int i);
+/* Seleciona o item com este texto; se não existir, acrescenta e seleciona.
+   Necessário porque os combos são só-lista: SetWindowText num deles não
+   mostra um valor que não esteja na lista (ex.: cor padrão personalizada). */
+void  combo_seleciona_texto(HWND combo, const char *utf8);
 
 /* Caixas de diálogo. */
 void  aviso(HWND pai, const char *titulo, const char *msg);
 void  erro(HWND pai, const char *titulo, const char *msg);
 int   pergunta(HWND pai, const char *titulo, const char *msg);   /* 1 = Sim */
+/* Sim / Não / Cancelar: devolve 1, 0 ou -1. */
+int   pergunta3(HWND pai, const char *titulo, const char *msg);
 
 /* Pede uma linha de texto ao usuário. Devolve 1 se confirmou. */
 int   pede_texto(HWND pai, const char *titulo, const char *rotulo,
@@ -53,7 +59,21 @@ void  roda_modal(HWND janela, HWND pai);
 /* Pasta do executável, em UTF-8, sem barra final. */
 void  pasta_do_exe(char *dst, int dst_bytes);
 
-/* Cria a pasta (e as intermediárias) se não existir. */
-void  garante_pasta(const char *caminho_utf8);
+/* Cria a pasta (e as intermediárias) se não existir. 0 = existe/criada. */
+int   garante_pasta(const char *caminho_utf8);
+
+/* Pasta "Documentos" do usuário, em UTF-8. Devolve 0 se não achou. */
+int   pasta_documentos(char *dst, int dst_bytes);
+
+/* Pasta onde os PDFs são gravados: vazia = Documentos\Formularios RAQ;
+   caminho relativo = relativo à pasta do executável; absoluto = como está. */
+void  pasta_saida_resolvida(const char *configurada, char *dst, int dst_bytes);
+
+/* Caixa "Procurar pasta". `dst` traz a pasta inicial e recebe a escolhida.
+   Devolve 1 se o usuário escolheu. */
+int   escolhe_pasta(HWND pai, const char *titulo, char *dst, int dst_bytes);
+
+/* Abre a pasta no Explorador de Arquivos. */
+void  abre_pasta(const char *caminho_utf8);
 
 #endif /* RAQ_WIN_UTIL_H */

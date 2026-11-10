@@ -1,11 +1,12 @@
 #include <windows.h>
+#include "versao.h"   /* gerado pelo Makefile */
 
 /* 1 = CREATEPROCESS_MANIFEST_RESOURCE_ID: manifesto do próprio executável. */
 1 RT_MANIFEST "raq.manifest"
 
 VS_VERSION_INFO VERSIONINFO
-  FILEVERSION    1,0,0,0
-  PRODUCTVERSION 1,0,0,0
+  FILEVERSION    RAQ_VERSAO_NUM
+  PRODUCTVERSION RAQ_VERSAO_NUM
   FILEOS         VOS_NT_WINDOWS32
   FILETYPE       VFT_APP
 BEGIN
@@ -14,11 +15,11 @@ BEGIN
     BLOCK "040904E4"
     BEGIN
       VALUE "FileDescription", "Formulario para Registro da Analise da Qualidade"
-      VALUE "FileVersion",     "1.0.0.0"
+      VALUE "FileVersion",     RAQ_VERSAO_STR
       VALUE "InternalName",    "RAQ"
       VALUE "OriginalFilename","RAQ.exe"
       VALUE "ProductName",     "RAQ Form Filler"
-      VALUE "ProductVersion",  "1.0.0.0"
+      VALUE "ProductVersion",  RAQ_VERSAO_STR
     END
   END
   BLOCK "VarFileInfo"

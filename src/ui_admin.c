@@ -1,10 +1,10 @@
 /* ui_admin.c — tela de administração: dados fixos do posto, pasta de saída,
    produtos com seus padrões e faixas, e manutenção de todos os cadastros.
 
-   Protegida por senha (padrão "admin", alterável aqui mesmo). O hash é um
-   FNV-1a: serve para impedir que o operador curioso mexa na configuração, não
-   para resistir a um ataque de verdade — e o arquivo de dados fica ao lado do
-   executável de qualquer jeito. */
+   Protegida pela senha criada na primeira execução (PBKDF2 com sal, ver
+   util.h). Serve para o operador não mexer na configuração; quem tem acesso
+   à pasta de dados pode apagar a linha senha_hash do config.ini, e então o
+   programa pede uma senha nova — é o caminho de recuperação documentado. */
 #include "ui_admin.h"
 #include "backend_gdi.h"
 #include "store.h"
@@ -21,6 +21,7 @@
 #define ID_CIDADE       104
 #define ID_PASTA        105
 #define ID_IMPRESSORA   106
+#define ID_PROCURAR     107
 
 #define ID_TIPO_CAD     200
 #define ID_LISTA_CAD    201
@@ -320,6 +321,8 @@ static void cadastro_padrao(HWND h, Admin *a)
 
 typedef struct {
     Produto *p;
+    const Store *store;
+    int      indice;          /* posição na lista, ou -1 se é produto novo */
     int      confirmou;
     HFONT    fonte;
     HWND nome, aspecto, cor, massa_min, massa_max;
@@ -457,11 +460,29 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
                 aviso(h, "Produto", "Informe o nome do produto.");
                 return 0;
             }
+            {
+                int k;
+                for (k = 0; k < e->store->n_produtos; k++)
+                    if (k != e->indice && !strcmp(e->store->produtos[k].nome, nome)) {
+                        aviso(h, "Produto", "Já existe um produto com esse nome.");
+                        return 0;
+                    }
+            }
             mmin = ep_le_num(e->massa_min);
             mmax = ep_le_num(e->massa_max);
             if (mmin > mmax) {
                 aviso(h, "Produto",
                       "O mínimo da massa específica não pode ser maior que o máximo.");
+                return 0;
+            }
+            if ((SendMessageW(e->usa_gas, BM_GETCHECK, 0, 0) == BST_CHECKED
+                 && ep_le_num(e->gas_min) > ep_le_num(e->gas_max))
+             || (SendMessageW(e->usa_aehc, BM_GETCHECK, 0, 0) == BST_CHECKED
+                 && ep_le_num(e->aehc_min) > ep_le_num(e->aehc_max))
+             || (SendMessageW(e->usa_bio, BM_GETCHECK, 0, 0) == BST_CHECKED
+                 && ep_le_num(e->bio_min) > ep_le_num(e->bio_max))) {
+                aviso(h, "Produto",
+                      "Em algum teor o mínimo está maior que o máximo.");
                 return 0;
             }
 
@@ -498,7 +519,8 @@ static LRESULT CALLBACK editor_produto_proc(HWND h, UINT m, WPARAM wp, LPARAM lp
     return DefWindowProcW(h, m, wp, lp);
 }
 
-static int edita_produto(HWND pai, Produto *p, HFONT fonte)
+static int edita_produto(HWND pai, Produto *p, const Store *store, int indice,
+                         HFONT fonte)
 {
     static int registrado = 0;
     HINSTANCE inst = GetModuleHandleW(NULL);
@@ -519,6 +541,8 @@ static int edita_produto(HWND pai, Produto *p, HFONT fonte)
 
     memset(&e, 0, sizeof e);
     e.p = p;
+    e.store = store;
+    e.indice = indice;
     e.fonte = fonte;
 
     h = CreateWindowExW(WS_EX_DLGMODALFRAME, L"RaqEditorProduto", L"Produto",
@@ -537,7 +561,6 @@ static void produto_novo(HWND h, Admin *a)
 {
     Store *s = a->store;
     Produto novo;
-    int i;
 
     if (s->n_produtos >= MAX_PRODUTOS) {
         erro(h, "Produtos", "Limite de produtos atingido.");
@@ -549,24 +572,15 @@ static void produto_novo(HWND h, Admin *a)
     str_copy(novo.cor_padrao, sizeof novo.cor_padrao, "AMARELADA");
     novo.ativo = 1;
 
-    if (!edita_produto(h, &novo, a->fonte)) return;
+    if (!edita_produto(h, &novo, s, -1, a->fonte)) return;
 
-    for (i = 0; i < s->n_produtos; i++)
-        if (!strcmp(s->produtos[i].nome, novo.nome)) {
-            erro(h, "Produtos", "Já existe um produto com esse nome.");
-            return;
-        }
-
-    novo.id = s->n_produtos + 1;
+    novo.id = store_proximo_id_produto(s);
     s->produtos[s->n_produtos++] = novo;
     if (store_salva_produtos(s) != 0)
         erro(h, "Erro ao salvar", "O produto não pôde ser gravado no disco.");
     a->alterou = 1;
     recarrega_produtos(a);
-
-    aviso(h, "Produtos",
-          "Produto cadastrado. Feche e abra o programa para que ele apareça "
-          "na tela de preenchimento.");
+    SendMessageW(a->lista_prod, LB_SETCURSEL, (WPARAM)(s->n_produtos - 1), 0);
 }
 
 static void produto_editar(HWND h, Admin *a)
@@ -576,7 +590,7 @@ static void produto_editar(HWND h, Admin *a)
         aviso(h, "Produtos", "Selecione um produto na lista.");
         return;
     }
-    if (!edita_produto(h, &a->store->produtos[i], a->fonte)) return;
+    if (!edita_produto(h, &a->store->produtos[i], a->store, i, a->fonte)) return;
     if (store_salva_produtos(a->store) != 0)
         erro(h, "Erro ao salvar", "A alteração não pôde ser gravada no disco.");
     a->alterou = 1;
@@ -606,35 +620,94 @@ static void produto_excluir(HWND h, Admin *a)
         erro(h, "Erro ao salvar", "A exclusão não pôde ser gravada no disco.");
     a->alterou = 1;
     recarrega_produtos(a);
-
-    aviso(h, "Produtos",
-          "Produto excluído. Feche e abra o programa para atualizar a tela "
-          "de preenchimento.");
 }
 
 /* ---------- senha ---------- */
 
-static void altera_senha(HWND h, Admin *a)
+/* Pede a senha nova duas vezes e grava. Devolve 1 se gravou. */
+static int cria_senha(HWND h, Store *s, const char *titulo)
 {
     char nova[128] = "", conf[128] = "";
+    char anterior[sizeof s->config.senha_hash];
 
-    if (!pede_texto(h, "Senha", "Nova senha do administrador:", nova, sizeof nova, 1))
-        return;
-    if (!pede_texto(h, "Senha", "Repita a nova senha:", conf, sizeof conf, 1))
-        return;
+    for (;;) {
+        if (!pede_texto(h, titulo, "Nova senha do administrador (mínimo 4 caracteres):",
+                        nova, sizeof nova, 1))
+            return 0;
+        if (strlen(nova) >= 4) break;
+        aviso(h, titulo, "A senha precisa ter pelo menos 4 caracteres.");
+    }
+    if (!pede_texto(h, titulo, "Repita a nova senha:", conf, sizeof conf, 1))
+        return 0;
     if (strcmp(nova, conf)) {
-        erro(h, "Senha", "As senhas não conferem. Nada foi alterado.");
-        return;
+        erro(h, titulo, "As senhas não conferem. Nada foi alterado.");
+        return 0;
     }
-    senha_hash(nova, a->store->config.senha_hash, sizeof a->store->config.senha_hash);
-    a->alterou = 1;
-    if (store_salva_config(a->store) != 0) {
-        erro(h, "Senha",
-             "A nova senha não pôde ser gravada e volta a ser a anterior "
-             "quando o programa fechar.");
-        return;
+
+    str_copy(anterior, sizeof anterior, s->config.senha_hash);
+    senha_gera_hash(nova, s->config.senha_hash, sizeof s->config.senha_hash);
+    SecureZeroMemory(nova, sizeof nova);
+    SecureZeroMemory(conf, sizeof conf);
+
+    if (store_salva_config(s) != 0) {
+        str_copy(s->config.senha_hash, sizeof s->config.senha_hash, anterior);
+        erro(h, titulo, "A nova senha não pôde ser gravada. Nada foi alterado.");
+        return 0;
     }
-    aviso(h, "Senha", "Senha alterada.");
+    return 1;
+}
+
+static void altera_senha(HWND h, Admin *a)
+{
+    if (cria_senha(h, a->store, "Senha")) {
+        a->alterou = 1;
+        aviso(h, "Senha", "Senha alterada.");
+    }
+}
+
+/* Confere a senha antes de abrir a administração. Também cobre os dois casos
+   de transição: sem senha nenhuma (linha apagada do config.ini para
+   recuperar o acesso) e senha no formato antigo. */
+static int autentica(HWND pai, Store *s)
+{
+    char senha[128] = "";
+    int legado;
+
+    if (!store_configurado(s)) {
+        aviso(pai, "Administração",
+              "Nenhuma senha de administrador está definida.\n\n"
+              "Crie uma senha agora para continuar.");
+        return cria_senha(pai, s, "Criar senha");
+    }
+
+    if (!pede_texto(pai, "Administração", "Senha:", senha, sizeof senha, 1))
+        return 0;
+    if (!senha_confere(senha, s->config.senha_hash)) {
+        SecureZeroMemory(senha, sizeof senha);
+        erro(pai, "Administração", "Senha incorreta.");
+        return 0;
+    }
+
+    legado = senha_hash_legado(s->config.senha_hash);
+    if (legado && !strcmp(senha, "admin")) {
+        /* A senha de fábrica das versões antigas era pública. */
+        SecureZeroMemory(senha, sizeof senha);
+        aviso(pai, "Administração",
+              "A senha ainda é a de fábrica (\"admin\"), que qualquer pessoa "
+              "conhece.\n\nCrie uma senha nova para continuar.");
+        return cria_senha(pai, s, "Nova senha");
+    }
+    if (legado) {
+        /* Regrava no formato novo, sem incomodar o usuário. Se não der para
+           gravar, o formato antigo continua valendo. */
+        char anterior[sizeof s->config.senha_hash];
+        str_copy(anterior, sizeof anterior, s->config.senha_hash);
+        senha_gera_hash(senha, s->config.senha_hash, sizeof s->config.senha_hash);
+        if (store_salva_config(s) != 0)
+            str_copy(s->config.senha_hash, sizeof s->config.senha_hash, anterior);
+    }
+    SecureZeroMemory(senha, sizeof senha);
+    return 1;
 }
 
 /* ---------- janela de administração ---------- */
@@ -653,9 +726,6 @@ static int salva_posto(Admin *a)
     ctl_texto(a->cnpj, cnpj, sizeof cnpj);
     cnpj_formata(cnpj, c->cnpj, sizeof c->cnpj);
 
-    if (str_empty(c->pasta_saida))
-        str_copy(c->pasta_saida, sizeof c->pasta_saida, "Formularios");
-
     {
         int i = combo_sel(a->impressora);
         /* Índice 0 é "usar a padrão do Windows", gravado como vazio. */
@@ -668,6 +738,59 @@ static int salva_posto(Admin *a)
 
     a->alterou = 1;
     return store_salva_config(a->store) == 0;
+}
+
+/* 1 se os campos do posto na tela diferem do que está gravado. */
+static int posto_alterado(Admin *a)
+{
+    const Config *c = &a->store->config;
+    char t[600], f[MAX_CNPJ];
+    int i;
+
+    ctl_texto(a->razao, t, sizeof t);    if (strcmp(t, c->razao_social))  return 1;
+    ctl_texto(a->endereco, t, sizeof t); if (strcmp(t, c->endereco))      return 1;
+    ctl_texto(a->bairro, t, sizeof t);   if (strcmp(t, c->bairro))        return 1;
+    ctl_texto(a->cidade, t, sizeof t);   if (strcmp(t, c->cidade_estado)) return 1;
+    ctl_texto(a->cnpj, t, sizeof t);
+    cnpj_formata(t, f, sizeof f);        if (strcmp(f, c->cnpj))          return 1;
+
+    ctl_texto(a->pasta, t, sizeof t);
+    if (strcmp(t, c->pasta_saida)) {
+        /* Pasta vazia no config aparece na tela já resolvida. */
+        char padrao[600];
+        pasta_saida_resolvida(c->pasta_saida, padrao, sizeof padrao);
+        if (!(str_empty(c->pasta_saida) && !strcmp(t, padrao))) return 1;
+    }
+
+    i = combo_sel(a->impressora);
+    return strcmp((i > 0 && i <= a->n_impressoras) ? a->lista_impressoras[i - 1] : "",
+                  c->impressora) != 0;
+}
+
+static void mostra_erro_gravacao(HWND h, Admin *a)
+{
+    char m[900];
+    snprintf(m, sizeof m,
+             "Não foi possível gravar em:\n\n%s\n\n"
+             "Verifique se você tem permissão de escrita nessa pasta.",
+             a->store->dir);
+    erro(h, "Erro ao salvar", m);
+}
+
+/* Fechar com dados do posto editados e não salvos perguntava nada e perdia
+   tudo; agora pergunta. Devolve 1 se pode fechar. */
+static int pode_fechar(HWND h, Admin *a)
+{
+    int r;
+    if (!posto_alterado(a)) return 1;
+    r = pergunta3(h, "Administração",
+                  "Os dados do posto foram alterados e ainda não foram "
+                  "salvos.\n\nSalvar antes de fechar?");
+    if (r < 0) return 0;
+    if (r == 0) return 1;
+    if (salva_posto(a)) return 1;
+    mostra_erro_gravacao(h, a);
+    return 0;
 }
 
 static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
@@ -688,7 +811,7 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         f = a->fonte;
 
         /* --- dados do posto --- */
-        cria_grupo(h, "Dados fixos do posto", 12, y, 660, 268, f);
+        cria_grupo(h, "Dados fixos do posto", 12, y, 660, 266, f);
         y += 26;
         cria_rotulo(h, "Razão social:", 26, y + 4, 130, 18, f);
         a->razao = cria_edit(h, 160, y, 496, 24, ID_RAZAO, f);
@@ -706,7 +829,8 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         a->cidade = cria_edit(h, 160, y, 220, 24, ID_CIDADE, f);
         y += 30;
         cria_rotulo(h, "Pasta dos PDFs:", 26, y + 4, 130, 18, f);
-        a->pasta = cria_edit(h, 160, y, 496, 24, ID_PASTA, f);
+        a->pasta = cria_edit(h, 160, y, 386, 24, ID_PASTA, f);
+        cria_botao(h, "Procurar...", 556, y - 1, 100, 26, ID_PROCURAR, f);
         y += 30;
 
         /* Impressora usada ao confirmar a impressão do formulário. */
@@ -735,6 +859,19 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
                 if (!strcmp(a->lista_impressoras[i], a->store->config.impressora))
                     sel = i + 1;
             }
+            /* Impressora fixada que sumiu (desinstalada, rede fora): fica na
+               lista marcada, para não ser trocada pela padrão sem ninguém
+               perceber ao salvar outro campo. */
+            if (sel == 0 && a->store->config.impressora[0]
+                && a->n_impressoras < 32) {
+                char rot[320];
+                str_copy(a->lista_impressoras[a->n_impressoras], 256,
+                         a->store->config.impressora);
+                a->n_impressoras++;
+                snprintf(rot, sizeof rot, "%s", a->store->config.impressora);
+                combo_add(a->impressora, rot);
+                sel = a->n_impressoras;
+            }
             combo_define_sel(a->impressora, sel);
         }
         y += 30;
@@ -747,7 +884,7 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
                      a->store->dir);
             cria_rotulo(h, info, 26, y, 630, 18, f);
         }
-        y += 26;
+        y += 32;
 
         /* --- produtos --- */
         cria_grupo(h, "Produtos, padrões e faixas", 12, y, 660, 180, f);
@@ -787,7 +924,13 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         ctl_define_texto(a->endereco, a->store->config.endereco);
         ctl_define_texto(a->bairro,   a->store->config.bairro);
         ctl_define_texto(a->cidade,   a->store->config.cidade_estado);
-        ctl_define_texto(a->pasta,    a->store->config.pasta_saida);
+        {
+            char pasta[600];
+            pasta_saida_resolvida(a->store->config.pasta_saida, pasta, sizeof pasta);
+            ctl_define_texto(a->pasta,
+                             str_empty(a->store->config.pasta_saida)
+                                 ? pasta : a->store->config.pasta_saida);
+        }
         recarrega_produtos(a);
         recarrega_cadastro(a);
         return 0;
@@ -818,30 +961,28 @@ static LRESULT CALLBACK admin_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         case ID_SENHA: altera_senha(h, a); return 0;
 
         case ID_SALVAR:
-            if (salva_posto(a)) {
-                aviso(h, "Administração", "Dados do posto salvos.");
-            } else {
-                char m[900];
-                snprintf(m, sizeof m,
-                         "Não foi possível gravar em:\n\n%s\n\n"
-                         "Verifique se você tem permissão de escrita nessa "
-                         "pasta. Programa instalado em \"Arquivos de "
-                         "Programas\" costuma bloquear a gravação — mova a "
-                         "pasta do RAQ para o Desktop ou para C:\\RAQ.",
-                         a->store->dir);
-                erro(h, "Erro ao salvar", m);
-            }
+            if (salva_posto(a)) aviso(h, "Administração", "Dados do posto salvos.");
+            else mostra_erro_gravacao(h, a);
             return 0;
+
+        case ID_PROCURAR: {
+            char p[600];
+            ctl_texto(a->pasta, p, sizeof p);
+            if (escolhe_pasta(h, "Pasta onde os formulários em PDF serão salvos:",
+                              p, sizeof p))
+                ctl_define_texto(a->pasta, p);
+            return 0;
+        }
 
         case ID_FECHAR:
         case IDCANCEL:
-            DestroyWindow(h);
+            if (pode_fechar(h, a)) DestroyWindow(h);
             return 0;
         }
         break;
 
     case WM_CLOSE:
-        DestroyWindow(h);
+        if (pode_fechar(h, a)) DestroyWindow(h);
         return 0;
     }
     return DefWindowProcW(h, m, wp, lp);
@@ -853,16 +994,8 @@ int ui_admin_abre(HWND pai, Store *store)
     HINSTANCE inst = GetModuleHandleW(NULL);
     Admin a;
     HWND h;
-    char senha[128] = "", hash[64];
 
-    if (!pede_texto(pai, "Administração", "Senha:", senha, sizeof senha, 1))
-        return 0;
-
-    senha_hash(senha, hash, sizeof hash);
-    if (strcmp(hash, store->config.senha_hash)) {
-        erro(pai, "Administração", "Senha incorreta.");
-        return 0;
-    }
+    if (!autentica(pai, store)) return 0;
 
     if (!registrado) {
         WNDCLASSW wc;
@@ -884,9 +1017,10 @@ int ui_admin_abre(HWND pai, Store *store)
 
     {
         RECT r;
-        /* 690x700 cobre exatamente o conteúdo montado em admin_proc e ainda
-           cabe numa tela de 768 px de altura, comum em PC de posto. */
-        r.left = 0; r.top = 0; r.right = 690; r.bottom = 760;
+        /* 690x730 cobre o conteúdo montado em admin_proc (os botões do
+           rodapé terminam em y = 716) e, com a barra de título, ainda cabe
+           numa tela de 768 px de altura, comum em PC de posto. */
+        r.left = 0; r.top = 0; r.right = 690; r.bottom = 730;
         AdjustWindowRect(&r, WS_POPUPWINDOW | WS_CAPTION, FALSE);
         h = CreateWindowExW(WS_EX_DLGMODALFRAME, L"RaqAdmin", L"Administração",
                             WS_POPUPWINDOW | WS_CAPTION,

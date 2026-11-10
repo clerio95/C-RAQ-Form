@@ -58,8 +58,8 @@ typedef struct {
     char endereco[MAX_NOME];
     char bairro[MAX_CAMPO];
     char cidade_estado[MAX_CAMPO];
-    char pasta_saida[512];
-    char senha_hash[64];
+    char pasta_saida[512];        /* vazio = Documentos\\Formularios RAQ */
+    char senha_hash[160];         /* vazio = senha ainda não criada */
     /* Vazio = usa a impressora padrão do Windows. Preenchido = fixa esta,
        para o formulário não seguir o padrão do Windows quando alguém troca
        (o "Microsoft Print to PDF" costuma virar padrão sozinho). */

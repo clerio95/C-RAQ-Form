@@ -1,4 +1,8 @@
+/* rand_s (Windows) só é declarado com isto antes de <stdlib.h>. */
+#define _CRT_RAND_S
+
 #include "util.h"
+#include "sha256.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -294,7 +298,57 @@ int num_parse(const char *s, double *out)
     return 1;
 }
 
-void senha_hash(const char *senha, char *dst, size_t dstsz)
+/* ---------- senha ---------- */
+
+#define PBKDF2_PREFIXO   "pbkdf2-sha256$"
+#define PBKDF2_ITERACOES 100000UL
+
+int bytes_aleatorios(unsigned char *dst, size_t n)
+{
+#ifdef _WIN32
+    size_t i;
+    for (i = 0; i < n; i++) {
+        unsigned int v;
+        if (rand_s(&v) != 0) return -1;
+        dst[i] = (unsigned char)(v & 0xFF);
+    }
+    return 0;
+#else
+    FILE *f = fopen("/dev/urandom", "rb");
+    size_t lidos;
+    if (!f) return -1;
+    lidos = fread(dst, 1, n, f);
+    fclose(f);
+    return lidos == n ? 0 : -1;
+#endif
+}
+
+static void para_hex(const unsigned char *b, size_t n, char *dst)
+{
+    static const char H[] = "0123456789abcdef";
+    size_t i;
+    for (i = 0; i < n; i++) { dst[2 * i] = H[b[i] >> 4]; dst[2 * i + 1] = H[b[i] & 15]; }
+    dst[2 * n] = '\0';
+}
+
+static int de_hex(const char *s, size_t n_hex, unsigned char *dst)
+{
+    size_t i;
+    for (i = 0; i < n_hex; i++) {
+        int v;
+        char c = s[i];
+        if (c >= '0' && c <= '9') v = c - '0';
+        else if (c >= 'a' && c <= 'f') v = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'F') v = c - 'A' + 10;
+        else return -1;
+        if (i % 2 == 0) dst[i / 2] = (unsigned char)(v << 4);
+        else dst[i / 2] |= (unsigned char)v;
+    }
+    return 0;
+}
+
+/* Formato usado até a versão 1.0: FNV-1a de 64 bits, sem sal. */
+static void senha_hash_fnv(const char *senha, char *dst, size_t dstsz)
 {
     unsigned long long h = 1469598103934665603ULL;
     const unsigned char *p = (const unsigned char *)(senha ? senha : "");
@@ -303,4 +357,63 @@ void senha_hash(const char *senha, char *dst, size_t dstsz)
         h *= 1099511628211ULL;
     }
     snprintf(dst, dstsz, "%016llx", h);
+}
+
+static void senha_pbkdf2(const char *senha, const unsigned char sal[16],
+                         unsigned long iteracoes, char *dst, size_t dstsz)
+{
+    unsigned char h[32];
+    char sal_hex[33], h_hex[65];
+    const char *s = senha ? senha : "";
+
+    pbkdf2_sha256((const unsigned char *)s, strlen(s), sal, 16, iteracoes, h);
+    para_hex(sal, 16, sal_hex);
+    para_hex(h, 32, h_hex);
+    snprintf(dst, dstsz, PBKDF2_PREFIXO "%lu$%s$%s", iteracoes, sal_hex, h_hex);
+}
+
+void senha_gera_hash(const char *senha, char *dst, size_t dstsz)
+{
+    unsigned char sal[16];
+    if (bytes_aleatorios(sal, sizeof sal) != 0) {
+        /* Sem fonte aleatória (não deve acontecer): o sal ainda varia com a
+           hora e o endereço, o que basta para não repetir entre instalações. */
+        unsigned long long t = (unsigned long long)time(NULL)
+                             ^ (unsigned long long)(size_t)dst;
+        size_t i;
+        for (i = 0; i < sizeof sal; i++) { sal[i] = (unsigned char)t; t = t * 6364136223846793005ULL + 1; }
+    }
+    senha_pbkdf2(senha, sal, PBKDF2_ITERACOES, dst, dstsz);
+}
+
+int senha_hash_legado(const char *hash)
+{
+    return hash && *hash && strncmp(hash, PBKDF2_PREFIXO, strlen(PBKDF2_PREFIXO)) != 0;
+}
+
+int senha_confere(const char *senha, const char *hash)
+{
+    char calc[SENHA_HASH_MAX];
+
+    if (!hash || !*hash) return 0;
+
+    if (senha_hash_legado(hash)) {
+        senha_hash_fnv(senha, calc, sizeof calc);
+        return strcmp(calc, hash) == 0;
+    }
+
+    {
+        const char *p = hash + strlen(PBKDF2_PREFIXO);
+        char *fim;
+        unsigned long it = strtoul(p, &fim, 10);
+        unsigned char sal[16];
+
+        if (fim == p || *fim != '$' || it == 0 || it > 10000000UL) return 0;
+        p = fim + 1;
+        if (strlen(p) != 32 + 1 + 64 || p[32] != '$') return 0;
+        if (de_hex(p, 32, sal) != 0) return 0;
+
+        senha_pbkdf2(senha, sal, it, calc, sizeof calc);
+        return strcmp(calc, hash) == 0;
+    }
 }

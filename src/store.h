@@ -35,6 +35,20 @@ int store_add_analista(Store *s, const char *nome);
 /* Remoções por índice; deslocam o restante da lista. */
 void store_remove(void *lista, int *n, size_t tam_item, int indice);
 
+/* 1 se a senha do administrador já foi criada (primeira execução feita). */
+int store_configurado(const Store *s);
+
+/* Próximo id livre na lista de produtos. */
+int store_proximo_id_produto(const Store *s);
+
+/* Grava todos os arquivos. Devolve 0 se todos gravaram. */
+int store_salva_tudo(const Store *s);
+
+/* Catálogo de produtos comuns, com faixas sugeridas, oferecido na primeira
+   execução. */
+int  store_catalogo_n(void);
+void store_catalogo_produto(int i, Produto *dst);
+
 /* Índice do registro marcado como padrão, ou 0 se nenhum. */
 int store_indice_padrao(const Empresa *lista, int n);
 

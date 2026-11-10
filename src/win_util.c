@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <shlobj.h>
+#include <shellapi.h>
+
 void u8_para_w(const char *utf8, wchar_t *dst, int dst_chars)
 {
     if (!dst || dst_chars <= 0) return;
@@ -117,6 +120,17 @@ void combo_define_sel(HWND combo, int i)
     SendMessageW(combo, CB_SETCURSEL, (WPARAM)i, 0);
 }
 
+void combo_seleciona_texto(HWND combo, const char *utf8)
+{
+    wchar_t t[512];
+    LRESULT i;
+    u8_para_w(utf8 ? utf8 : "", t, (int)(sizeof t / sizeof t[0]));
+    if (!t[0]) { SendMessageW(combo, CB_SETCURSEL, (WPARAM)-1, 0); return; }
+    i = SendMessageW(combo, CB_FINDSTRINGEXACT, (WPARAM)-1, (LPARAM)t);
+    if (i == CB_ERR) i = SendMessageW(combo, CB_ADDSTRING, 0, (LPARAM)t);
+    SendMessageW(combo, CB_SETCURSEL, (WPARAM)i, 0);
+}
+
 static int caixa(HWND pai, const char *titulo, const char *msg, UINT flags)
 {
     wchar_t t[256], m[2048];
@@ -138,6 +152,12 @@ void erro(HWND pai, const char *titulo, const char *msg)
 int pergunta(HWND pai, const char *titulo, const char *msg)
 {
     return caixa(pai, titulo, msg, MB_YESNO | MB_ICONQUESTION) == IDYES;
+}
+
+int pergunta3(HWND pai, const char *titulo, const char *msg)
+{
+    int r = caixa(pai, titulo, msg, MB_YESNOCANCEL | MB_ICONQUESTION);
+    return r == IDYES ? 1 : r == IDNO ? 0 : -1;
 }
 
 /* ---------- caixa de entrada de uma linha ---------- */
@@ -257,7 +277,14 @@ void roda_modal(HWND janela, HWND pai)
     UpdateWindow(janela);
 
     /* Sem PostQuitMessage: o laço termina quando a janela some. */
-    while (IsWindow(janela) && GetMessageW(&msg, NULL, 0, 0) > 0) {
+    while (IsWindow(janela)) {
+        BOOL r = GetMessageW(&msg, NULL, 0, 0);
+        if (r <= 0) {
+            /* WM_QUIT (ex.: Windows desligando) pertence ao laço principal:
+               devolve para a fila em vez de engolir. */
+            if (r == 0) PostQuitMessage((int)msg.wParam);
+            break;
+        }
         if (!IsDialogMessageW(janela, &msg)) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
@@ -283,9 +310,87 @@ void pasta_do_exe(char *dst, int dst_bytes)
     w_para_u8(p, dst, dst_bytes);
 }
 
-void garante_pasta(const char *caminho_utf8)
+int garante_pasta(const char *caminho_utf8)
+{
+    wchar_t w[MAX_PATH];
+    int r;
+    u8_para_w(caminho_utf8, w, MAX_PATH);
+    if (GetFileAttributesW(w) != INVALID_FILE_ATTRIBUTES) return 0;
+    r = SHCreateDirectoryExW(NULL, w, NULL);
+    return (r == ERROR_SUCCESS || r == ERROR_ALREADY_EXISTS
+            || r == ERROR_FILE_EXISTS) ? 0 : -1;
+}
+
+int pasta_documentos(char *dst, int dst_bytes)
+{
+    wchar_t w[MAX_PATH];
+    dst[0] = '\0';
+    if (SHGetFolderPathW(NULL, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, w) != S_OK)
+        return 0;
+    w_para_u8(w, dst, dst_bytes);
+    return dst[0] != '\0';
+}
+
+void pasta_saida_resolvida(const char *configurada, char *dst, int dst_bytes)
+{
+    char base[600];
+
+    if (!configurada || str_empty(configurada)) {
+        if (pasta_documentos(base, sizeof base)) {
+            snprintf(dst, (size_t)dst_bytes, "%s\\Formularios RAQ", base);
+            return;
+        }
+        configurada = "Formularios";
+    }
+
+    /* Caminho relativo é resolvido a partir da pasta do executável. */
+    if (!strchr(configurada, ':') && configurada[0] != '\\' && configurada[0] != '/') {
+        pasta_do_exe(base, sizeof base);
+        snprintf(dst, (size_t)dst_bytes, "%s\\%s", base, configurada);
+        return;
+    }
+    str_copy(dst, (size_t)dst_bytes, configurada);
+}
+
+static int CALLBACK escolhe_pasta_cb(HWND h, UINT m, LPARAM lp, LPARAM dados)
+{
+    (void)lp;
+    if (m == BFFM_INITIALIZED && dados)
+        SendMessageW(h, BFFM_SETSELECTIONW, TRUE, dados);
+    return 0;
+}
+
+int escolhe_pasta(HWND pai, const char *titulo, char *dst, int dst_bytes)
+{
+    BROWSEINFOW bi;
+    PIDLIST_ABSOLUTE pidl;
+    wchar_t t[256], inicial[MAX_PATH], escolhida[MAX_PATH];
+    int ok = 0;
+
+    u8_para_w(titulo, t, (int)(sizeof t / sizeof t[0]));
+    u8_para_w(dst, inicial, MAX_PATH);
+
+    memset(&bi, 0, sizeof bi);
+    bi.hwndOwner = pai;
+    bi.lpszTitle = t;
+    bi.ulFlags   = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    bi.lpfn      = escolhe_pasta_cb;
+    bi.lParam    = (LPARAM)(inicial[0] ? inicial : NULL);
+
+    pidl = SHBrowseForFolderW(&bi);
+    if (pidl) {
+        if (SHGetPathFromIDListW(pidl, escolhida)) {
+            w_para_u8(escolhida, dst, dst_bytes);
+            ok = 1;
+        }
+        CoTaskMemFree(pidl);
+    }
+    return ok;
+}
+
+void abre_pasta(const char *caminho_utf8)
 {
     wchar_t w[MAX_PATH];
     u8_para_w(caminho_utf8, w, MAX_PATH);
-    CreateDirectoryW(w, NULL);
+    ShellExecuteW(NULL, L"open", w, NULL, NULL, SW_SHOWNORMAL);
 }

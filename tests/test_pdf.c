@@ -9,18 +9,19 @@
 /* id, nome, aspecto, cor, massa min/max, usa_gas + min/max,
    usa_aehc + min/max, usa_bio + min/max, ativo */
 static Produto PRODUTOS[4] = {
-    { 1, "GASOLINA C",   "L.I.I.", "AMARELADA",  735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,      0, 0, 0,       1 },
-    { 2, "GASOLINA ADV", "L.I.I.", "ESVERDEADA", 735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,      0, 0, 0,       1 },
+    { 1, "GASOLINA COMUM", "L.I.I.", "AMARELADA",  735.00, 775.00, 1, 31.0, 33.0, 0, 0, 0,      0, 0, 0,       1 },
+    { 2, "GASOLINA ADITIVADA", "L.I.I.", "ESVERDEADA", 735.00, 775.00, 1, 31.0, 33.0, 0, 0, 0,      0, 0, 0,       1 },
     { 3, "DIESEL S10",   "L.I.I.", "AMARELADA",  817.00, 865.00, 0, 0, 0,       0, 0, 0,      1, 14.5, 15.5, 1 },
-    { 4, "ETANOL ADV",   "L.I.I.", "ESVERDEADA", 807.60, 811.20, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0,     1 }
+    { 4, "ETANOL HIDRATADO", "L.I.I.", "INCOLOR", 805.20, 811.20, 0, 0, 0,     1, 92.5, 94.6, 0, 0, 0,     1 }
 };
 
 static Config CFG = {
-    "AUTO POSTO BOA VIAGEM LTDA",
+    "AUTO POSTO EXEMPLO LTDA",
     "12.345.678/0001-95",
-    "AVENIDA GOVERNADOR AGAMENON MAGALHÃES, 1.250",
-    "DERBY",
-    "RECIFE/PE",
+    "AVENIDA DAS AÇÕES DE EXEMPLO, 1.250",
+    "CENTRO",
+    "CIDADE/UF",
+    "",
     "",
     ""
 };
@@ -44,10 +45,10 @@ static void coluna(Formulario *f, const Produto *p, const char *vol,
 static void preenche_comum(Formulario *f)
 {
     str_copy(f->data_coleta,        sizeof f->data_coleta,        "30/07/2026");
-    str_copy(f->distribuidor,       sizeof f->distribuidor,       "IPIRANGA PRODUTOS DE PETRÓLEO S.A.");
-    str_copy(f->distribuidor_cnpj,  sizeof f->distribuidor_cnpj,  "33.337.122/0001-27");
-    str_copy(f->transportador,      sizeof f->transportador,      "TRANSPORTES SÃO CRISTÓVÃO LTDA");
-    str_copy(f->transportador_cnpj, sizeof f->transportador_cnpj, "04.196.645/0001-00");
+    str_copy(f->distribuidor,       sizeof f->distribuidor,       "DISTRIBUIDORA EXEMPLO DE PETRÓLEO S.A.");
+    str_copy(f->distribuidor_cnpj,  sizeof f->distribuidor_cnpj,  "11.222.333/0001-81");
+    str_copy(f->transportador,      sizeof f->transportador,      "TRANSPORTADORA MODELO SÃO CRISTÓVÃO LTDA");
+    str_copy(f->transportador_cnpj, sizeof f->transportador_cnpj, "98.765.432/0001-98");
     str_copy(f->nota_fiscal,        sizeof f->nota_fiscal,        "123456");
     str_copy(f->placa,              sizeof f->placa,              "ABC1D23");
     str_copy(f->motorista,          sizeof f->motorista,          "JOSÉ ANTÔNIO DA SILVA");
@@ -65,10 +66,10 @@ int main(void)
     memset(&f, 0, sizeof f);
     f.config = &CFG;
     preenche_comum(&f);
-    coluna(&f, &PRODUTOS[0], "5.000", "751,20", "27,0", "",     "");
-    coluna(&f, &PRODUTOS[1], "3.000", "748,80", "26,5", "",     "");
+    coluna(&f, &PRODUTOS[0], "5.000", "751,20", "32,0", "",     "");
+    coluna(&f, &PRODUTOS[1], "3.000", "748,80", "31,5", "",     "");
     coluna(&f, &PRODUTOS[2], "8.000", "840,20", "",     "",     "15,0");
-    coluna(&f, &PRODUTOS[3], "6.000", "809,00", "",     "99,6", "");
+    coluna(&f, &PRODUTOS[3], "6.000", "809,00", "",     "93,4", "");
     if (raq_gera_pdf(&f, "build/exemplo-4-produtos.pdf") != 0) {
         fprintf(stderr, "falha ao gerar exemplo de 4 produtos\n");
         return 1;
@@ -90,8 +91,8 @@ int main(void)
     preenche_comum(&f);
     str_copy(f.distribuidor, sizeof f.distribuidor,
              "DISTRIBUIDORA NACIONAL DE COMBUSTÍVEIS E LUBRIFICANTES DO NORDESTE S.A.");
-    coluna(&f, &PRODUTOS[0], "5.000", "751,20", "27,0", "", "");
-    coluna(&f, &PRODUTOS[3], "6.000", "809,00", "", "99,6", "");
+    coluna(&f, &PRODUTOS[0], "5.000", "751,20", "32,0", "", "");
+    coluna(&f, &PRODUTOS[3], "6.000", "809,00", "", "93,4", "");
     if (raq_gera_pdf(&f, "build/exemplo-2-produtos.pdf") != 0) {
         fprintf(stderr, "falha ao gerar exemplo de 2 produtos\n");
         return 1;
@@ -100,10 +101,11 @@ int main(void)
     /* Sanidade das utilidades. */
     {
         struct { const char *cnpj; int esperado; } casos[] = {
-            { "33.337.122/0001-27", 1 },
+            { "11.222.333/0001-81", 1 },
+            { "98.765.432/0001-98", 1 },
             { "12.345.678/0001-95", 1 },
             { "11.111.111/1111-11", 0 },
-            { "33.337.122/0001-28", 0 },
+            { "11.222.333/0001-82", 0 },
             { "123", 0 }
         };
         int falhas = 0;

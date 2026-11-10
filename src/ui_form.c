@@ -15,6 +15,8 @@
 #include "util.h"
 #include "win_util.h"
 
+#include "versao.h"   /* gerado pelo Makefile */
+
 #include <stdio.h>
 #include <string.h>
 
@@ -45,6 +47,7 @@
 #define ID_GERAR           4000
 #define ID_LIMPAR          4001
 #define ID_ADMIN           4002
+#define ID_ABRIR_PASTA     4003
 
 /* ---------- geometria ---------- */
 
@@ -54,7 +57,7 @@
 #define ALT_CTL         24
 #define LARG_ROTULO    150
 #define LARG_COLUNA    185
-#define X_COL0         180
+#define X_COL0         200
 
 /* ---------- estado ---------- */
 
@@ -71,6 +74,7 @@ typedef struct {
 
 typedef struct {
     Store *store;
+    HWND   janela;
     HFONT  fonte, fonte_peq, fonte_titulo;
     HBRUSH pincel_erro;
 
@@ -89,6 +93,10 @@ typedef struct {
     int desloc;            /* deslocamento atual da rolagem, em pixels */
     int responsavel_tocado;/* usuário editou o responsável à mão */
     int n_produtos_ui;     /* produtos que têm controles criados na tela */
+    /* Nomes dos produtos quando a tela foi montada: se o admin incluir,
+       excluir ou renomear, a tela é remontada (os controles são indexados
+       pela posição do produto na lista). */
+    char nomes_ui[MAX_PRODUTOS][MAX_NOME];
 
     /* Escrever num EDIT dispara EN_CHANGE igual à digitação. Sem esta trava,
        o próprio programa preenchendo o campo "Responsável" o marcaria como
@@ -118,7 +126,9 @@ static void texto_faixa(char *dst, size_t n, double min, double max, int casas,
     char a[32], b[32];
     numero_br(min, casas, a, sizeof a);
     numero_br(max, casas, b, sizeof b);
-    snprintf(dst, n, "faixa: %s%s a %s%s", a, unidade, b, unidade);
+    /* Curto de propósito: o rótulo tem uma linha só e a coluna estreita
+       quando vários produtos são marcados. */
+    snprintf(dst, n, "faixa %s a %s%s", a, b, unidade);
 }
 
 static int produto_marcado(const App *a, int i)
@@ -209,9 +219,59 @@ static void atualiza_cabecalho(App *a)
 
 /* ---------- visibilidade das colunas de análise ---------- */
 
+/* Move o controle na horizontal, mantendo a posição vertical (que já
+   inclui a rolagem). Combos recebem a altura da lista aberta. */
+static void posiciona_x(HWND janela, HWND c, int x, int w, int alt_combo)
+{
+    RECT r;
+    if (!c) return;
+    GetWindowRect(c, &r);
+    MapWindowPoints(NULL, janela, (POINT *)&r, 2);
+    SetWindowPos(c, NULL, x, r.top, w, alt_combo ? alt_combo : r.bottom - r.top,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+/* As colunas do bloco de análise ficam lado a lado na ordem dos produtos
+   marcados, sem buracos, e estreitam para caber todas na janela. Antes cada
+   produto tinha posição fixa, e do 5º em diante a coluna caía fora da tela. */
+static void posiciona_colunas(App *a)
+{
+    int i, k = 0, marcados = 0, passo;
+    int disponivel = LARG_CLIENTE - MARGEM - 14 - X_COL0;
+
+    for (i = 0; i < a->n_produtos_ui && i < a->store->n_produtos; i++)
+        if (produto_marcado(a, i)) marcados++;
+    if (marcados == 0) return;
+
+    passo = disponivel / marcados;
+    if (passo > LARG_COLUNA) passo = LARG_COLUNA;
+
+    for (i = 0; i < a->n_produtos_ui && i < a->store->n_produtos; i++) {
+        CtlColuna *c = &a->coluna[i];
+        int x, w;
+        if (!produto_marcado(a, i)) continue;
+        x = X_COL0 + k * passo;
+        w = passo - 12;
+        posiciona_x(a->janela, c->cabecalho,   x, w, 0);
+        posiciona_x(a->janela, c->aspecto,     x, w, 200);
+        posiciona_x(a->janela, c->cor,         x, w, 200);
+        posiciona_x(a->janela, c->massa,       x, w, 0);
+        posiciona_x(a->janela, c->faixa_massa, x, w, 0);
+        posiciona_x(a->janela, c->teor_gas,    x, w, 0);
+        posiciona_x(a->janela, c->faixa_gas,   x, w, 0);
+        posiciona_x(a->janela, c->teor_aehc,   x, w, 0);
+        posiciona_x(a->janela, c->faixa_aehc,  x, w, 0);
+        posiciona_x(a->janela, c->teor_bio,    x, w, 0);
+        posiciona_x(a->janela, c->faixa_bio,   x, w, 0);
+        k++;
+    }
+}
+
 static void aplica_visibilidade(App *a)
 {
     int i;
+
+    posiciona_colunas(a);
 
     /* Percorre os controles existentes, não os produtos do cadastro: o admin
        pode ter excluído produtos desde que a tela foi montada, e os controles
@@ -267,8 +327,8 @@ static void aplica_padroes(App *a, int i)
     CtlColuna *c = &a->coluna[i];
     char faixa[64];
 
-    ctl_define_texto(c->aspecto, p->aspecto_padrao);
-    ctl_define_texto(c->cor,     p->cor_padrao);
+    combo_seleciona_texto(c->aspecto, p->aspecto_padrao);
+    combo_seleciona_texto(c->cor,     p->cor_padrao);
 
     texto_faixa(faixa, sizeof faixa, p->massa_min, p->massa_max, 2, " kg/m³");
     ctl_define_texto(c->faixa_massa, faixa);
@@ -357,6 +417,8 @@ static int monta_bloco_produtos(App *a, HWND h, int y)
         ShowWindow(a->produto[i].volume, SW_HIDE);
     }
     a->n_produtos_ui = n;
+    for (i = 0; i < n; i++)
+        str_copy(a->nomes_ui[i], sizeof a->nomes_ui[i], a->store->produtos[i].nome);
     return y + altura + 10;
 }
 
@@ -419,12 +481,13 @@ static int monta_bloco_recebimento(App *a, HWND h, int y)
 static int monta_bloco_analise(App *a, HWND h, int y)
 {
     static const char *ROT[ANALISE_N] = {
-        "Aspecto:", "Cor:", "Massa Específica a 20°C (kg/m³):",
-        "Teor de álcool na Gasolina:", "Teor Alcoólico no AEHC:",
-        "Teor de Biodiesel:"
+        "Aspecto:", "Cor:", "Massa específica 20°C:",
+        "Álcool na gasolina:", "Teor alcoólico AEHC:",
+        "Teor de biodiesel:"
     };
     static const char *ASPECTOS[] = { "L.I.I.", "L.I.I.C.", "TURVO", "COM IMPUREZAS" };
-    static const char *CORES[]    = { "AMARELADA", "ESVERDEADA", "INCOLOR", "LARANJA" };
+    static const char *CORES[]    = { "AMARELADA", "ESVERDEADA", "INCOLOR",
+                                      "LARANJA", "VERMELHA", "AZULADA" };
 
     int altura = 28 + 24 + 2 * ALT_LINHA_UI + 4 * 44 + 10;
     int y_cab = y + 26;
@@ -439,12 +502,12 @@ static int monta_bloco_analise(App *a, HWND h, int y)
     cria_grupo(h, "Resultados da análise", MARGEM, y,
                LARG_CLIENTE - 2 * MARGEM, altura, a->fonte);
 
-    a->rot_analise[0] = cria_rotulo(h, ROT[0], MARGEM + 16, y_asp + 5, LARG_ROTULO + 10, 18, a->fonte);
-    a->rot_analise[1] = cria_rotulo(h, ROT[1], MARGEM + 16, y_cor + 5, LARG_ROTULO + 10, 18, a->fonte);
-    a->rot_analise[2] = cria_rotulo(h, ROT[2], MARGEM + 16, y_mas + 5, LARG_ROTULO + 10, 18, a->fonte);
-    a->rot_analise[3] = cria_rotulo(h, ROT[3], MARGEM + 16, y_gas + 5, LARG_ROTULO + 10, 18, a->fonte);
-    a->rot_analise[4] = cria_rotulo(h, ROT[4], MARGEM + 16, y_aeh + 5, LARG_ROTULO + 10, 18, a->fonte);
-    a->rot_analise[5] = cria_rotulo(h, ROT[5], MARGEM + 16, y_bio + 5, LARG_ROTULO + 10, 18, a->fonte);
+    a->rot_analise[0] = cria_rotulo(h, ROT[0], MARGEM + 16, y_asp + 5, X_COL0 - MARGEM - 24, 18, a->fonte);
+    a->rot_analise[1] = cria_rotulo(h, ROT[1], MARGEM + 16, y_cor + 5, X_COL0 - MARGEM - 24, 18, a->fonte);
+    a->rot_analise[2] = cria_rotulo(h, ROT[2], MARGEM + 16, y_mas + 5, X_COL0 - MARGEM - 24, 18, a->fonte);
+    a->rot_analise[3] = cria_rotulo(h, ROT[3], MARGEM + 16, y_gas + 5, X_COL0 - MARGEM - 24, 18, a->fonte);
+    a->rot_analise[4] = cria_rotulo(h, ROT[4], MARGEM + 16, y_aeh + 5, X_COL0 - MARGEM - 24, 18, a->fonte);
+    a->rot_analise[5] = cria_rotulo(h, ROT[5], MARGEM + 16, y_bio + 5, X_COL0 - MARGEM - 24, 18, a->fonte);
 
     for (i = 0; i < a->store->n_produtos && i < MAX_PRODUTOS; i++) {
         CtlColuna *c = &a->coluna[i];
@@ -487,6 +550,8 @@ static int monta_rodape(App *a, HWND h, int y)
     cria_ctl(h, L"BUTTON", "Gerar formulário", BS_DEFPUSHBUTTON | WS_TABSTOP,
              MARGEM + 16, y, 190, 36, ID_GERAR, a->fonte_titulo);
     cria_botao(h, "Limpar", MARGEM + 216, y, 110, 36, ID_LIMPAR, a->fonte);
+    cria_botao(h, "Abrir pasta dos PDFs", MARGEM + 336, y, 170, 36,
+               ID_ABRIR_PASTA, a->fonte);
     cria_botao(h, "Administração", LARG_CLIENTE - MARGEM - 150, y, 136, 36,
                ID_ADMIN, a->fonte);
     return y + 36 + MARGEM;
@@ -795,18 +860,7 @@ static void monta_caminho_pdf(App *a, const Formulario *f, char *dst, size_t n)
     char pasta[600], data[32], nf[64];
     int sufixo;
 
-    if (a->store->config.pasta_saida[0] == '\0')
-        str_copy(pasta, sizeof pasta, "Formularios");
-    else
-        str_copy(pasta, sizeof pasta, a->store->config.pasta_saida);
-
-    /* Caminho relativo é resolvido a partir da pasta do executável. */
-    if (!strchr(pasta, ':') && pasta[0] != '\\' && pasta[0] != '/') {
-        char exe[512], completo[600];
-        pasta_do_exe(exe, sizeof exe);
-        snprintf(completo, sizeof completo, "%s\\%s", exe, pasta);
-        str_copy(pasta, sizeof pasta, completo);
-    }
+    pasta_saida_resolvida(a->store->config.pasta_saida, pasta, sizeof pasta);
     garante_pasta(pasta);
 
     /* dd/mm/aaaa -> aaaa-mm-dd */
@@ -876,7 +930,14 @@ static void gera(HWND h, App *a)
         return;
     }
 
-    store_registra_historico(a->store, &f, caminho);
+    if (store_registra_historico(a->store, &f, caminho) != 0) {
+        snprintf(msg, sizeof msg,
+                 "O PDF foi salvo, mas a linha do histórico não pôde ser "
+                 "gravada em:\n\n%s\\historico.csv\n\n"
+                 "Se o arquivo estiver aberto no Excel, feche-o.",
+                 a->store->dir);
+        aviso(h, "Histórico", msg);
+    }
 
     {
         char impressora[256];
@@ -912,6 +973,55 @@ static void gera(HWND h, App *a)
     limpa_formulario(a);
 }
 
+/* ---------- montagem e remontagem ---------- */
+
+static void inicializa_tela(App *a, HWND h)
+{
+    char hoje[32];
+    monta_tudo(a, h);
+    atualiza_cabecalho(a);
+    carrega_combos(a);
+    atualiza_derivados(a);
+    data_hoje(hoje, sizeof hoje);
+    ctl_define_texto(a->data, hoje);
+    aplica_visibilidade(a);
+}
+
+static int produtos_mudaram(const App *a)
+{
+    int i;
+    if (a->n_produtos_ui != a->store->n_produtos) return 1;
+    for (i = 0; i < a->n_produtos_ui; i++)
+        if (strcmp(a->nomes_ui[i], a->store->produtos[i].nome)) return 1;
+    return 0;
+}
+
+/* Destrói todos os controles e monta de novo a partir do cadastro atual. */
+static void remonta_tela(App *a, HWND h)
+{
+    App guardado = *a;
+    HWND c;
+
+    SendMessageW(h, WM_SETREDRAW, FALSE, 0);
+    while ((c = GetWindow(h, GW_CHILD)) != NULL) DestroyWindow(c);
+
+    memset(a, 0, sizeof *a);
+    a->store        = guardado.store;
+    a->janela       = guardado.janela;
+    a->fonte        = guardado.fonte;
+    a->fonte_peq    = guardado.fonte_peq;
+    a->fonte_titulo = guardado.fonte_titulo;
+    a->pincel_erro  = guardado.pincel_erro;
+
+    a->desloc = 0;
+    SetScrollPos(h, SB_VERT, 0, TRUE);
+    inicializa_tela(a, h);
+    ajusta_rolagem(h);
+
+    SendMessageW(h, WM_SETREDRAW, TRUE, 0);
+    RedrawWindow(h, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+}
+
 /* ---------- procedimento da janela ---------- */
 
 static LRESULT CALLBACK form_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
@@ -921,10 +1031,10 @@ static LRESULT CALLBACK form_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
     switch (m) {
     case WM_CREATE: {
         CREATESTRUCTW *cs = (CREATESTRUCTW *)lp;
-        char hoje[32];
 
         a = (App *)cs->lpCreateParams;
         SetWindowLongPtrW(h, GWLP_USERDATA, (LONG_PTR)a);
+        a->janela = h;
 
         a->fonte        = CreateFontW(-14, 0, 0, 0, FW_NORMAL, 0, 0, 0,
                                       DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY,
@@ -937,13 +1047,7 @@ static LRESULT CALLBACK form_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
                                       DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
         a->pincel_erro  = CreateSolidBrush(RGB(255, 226, 226));
 
-        monta_tudo(a, h);
-        atualiza_cabecalho(a);
-        carrega_combos(a);
-        atualiza_derivados(a);
-        data_hoje(hoje, sizeof hoje);
-        ctl_define_texto(a->data, hoje);
-        aplica_visibilidade(a);
+        inicializa_tela(a, h);
         return 0;
     }
 
@@ -989,6 +1093,13 @@ static LRESULT CALLBACK form_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
         case ID_ADMIN:
             if (ui_admin_abre(h, a->store)) ui_form_recarrega(h);
             return 0;
+        case ID_ABRIR_PASTA: {
+            char pasta[600];
+            pasta_saida_resolvida(a->store->config.pasta_saida, pasta, sizeof pasta);
+            garante_pasta(pasta);
+            abre_pasta(pasta);
+            return 0;
+        }
         }
         break;
     }
@@ -1070,16 +1181,15 @@ void ui_form_recarrega(HWND janela)
     int i;
     if (!a) return;
 
+    if (produtos_mudaram(a)) { remonta_tela(a, janela); return; }
+
     atualiza_cabecalho(a);
     carrega_combos(a);
     atualiza_derivados(a);
 
-    /* Nomes e faixas dos produtos podem ter mudado. */
-    for (i = 0; i < a->n_produtos_ui && i < a->store->n_produtos; i++) {
-        ctl_define_texto(a->produto[i].check, a->store->produtos[i].nome);
-        ctl_define_texto(a->coluna[i].cabecalho, a->store->produtos[i].nome);
+    /* Mesmos produtos, mas faixas e padrões podem ter mudado. */
+    for (i = 0; i < a->n_produtos_ui && i < a->store->n_produtos; i++)
         if (produto_marcado(a, i)) { aplica_padroes(a, i); revalida_faixas(a, i); }
-    }
     aplica_visibilidade(a);
     InvalidateRect(janela, NULL, TRUE);
 }
@@ -1112,7 +1222,8 @@ HWND ui_form_cria(HINSTANCE inst, Store *store)
         int max_a = GetSystemMetrics(SM_CYMAXIMIZED) - 40;
         if (at > max_a) at = max_a;
         h = CreateWindowExW(0, L"RaqFormPrincipal",
-                            L"Formulário de Registro da Análise da Qualidade",
+                            L"Formulário de Registro da Análise da Qualidade"
+                            L"  —  versão " TEXT(RAQ_VERSAO_STR),
                             WS_OVERLAPPEDWINDOW | WS_VSCROLL,
                             CW_USEDEFAULT, CW_USEDEFAULT, lt, at,
                             NULL, NULL, inst, &app);

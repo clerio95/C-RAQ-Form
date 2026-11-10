@@ -43,8 +43,19 @@ int   cnpj_valido(const char *src);
 /* Converte "1.234,56" ou "1234.56" em double. 0 se não for número. */
 int   num_parse(const char *s, double *out);
 
-/* Hash FNV-1a em hexadecimal — suficiente para a senha do admin,
-   que só protege contra o usuário curioso, não contra ataque real. */
-void  senha_hash(const char *senha, char *dst, size_t dstsz);
+/* Senha do administrador.
+
+   O hash novo é PBKDF2-HMAC-SHA256 com sal aleatório, gravado como
+   "pbkdf2-sha256$<iterações>$<sal hex>$<hash hex>". Versões anteriores
+   gravavam um FNV-1a sem sal (16 dígitos hex); senha_confere ainda aceita
+   esse formato para que a atualização não tranque ninguém do lado de fora, e
+   senha_hash_legado avisa que vale regravar no formato novo. */
+#define SENHA_HASH_MAX 160
+void  senha_gera_hash(const char *senha, char *dst, size_t dstsz);
+int   senha_confere(const char *senha, const char *hash);
+int   senha_hash_legado(const char *hash);
+
+/* Bytes aleatórios do sistema. Devolve 0 em caso de sucesso. */
+int   bytes_aleatorios(unsigned char *dst, size_t n);
 
 #endif /* RAQ_UTIL_H */

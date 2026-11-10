@@ -71,62 +71,71 @@ static void num_para_texto(double v, int casas, char *dst, size_t n)
     snprintf(dst, n, "%.*f", casas, v);
 }
 
-/* ---------- padrões da primeira execução ---------- */
+/* ---------- catálogo de produtos ---------- */
 
+/* Produtos que o assistente de primeira execução oferece. As faixas são o
+   ponto de partida, não verdade eterna: o teor de etanol anidro na gasolina
+   muda por decisão do CNPE (E30 em ago/2025, E32 em ago/2026) e o de
+   biodiesel no diesel também. O admin ajusta tudo na tela de Administração. */
 static const struct ProdutoBase {
     const char *nome, *cor;
     double mmin, mmax;
     int gas; double gmin, gmax;
     int aehc; double amin, amax;
     int bio; double bmin, bmax;
-} base[] = {
-    /* Massa específica em kg/m³ (735,00 e não 0,7350). */
-    { "GASOLINA C",   "AMARELADA",  735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
-    { "GASOLINA ADV", "ESVERDEADA", 735.00, 775.00, 1, 26.0, 28.0, 0, 0, 0,     0, 0, 0 },
-    { "DIESEL S10",   "AMARELADA",  817.00, 865.00, 0, 0, 0,       0, 0, 0,     1, 14.5, 15.5 },
-    { "ETANOL ADV",   "ESVERDEADA", 807.60, 811.20, 0, 0, 0,       1, 99.3, 100.0, 0, 0, 0 }
+} catalogo[] = {
+    /* Massa específica em kg/m³ (735,00 e não 0,7350); teores em %. */
+    { "GASOLINA COMUM",     "AMARELADA",  735.00, 775.00, 1, 31.0, 33.0, 0, 0, 0,     0, 0, 0 },
+    { "GASOLINA ADITIVADA", "ESVERDEADA", 735.00, 775.00, 1, 31.0, 33.0, 0, 0, 0,     0, 0, 0 },
+    { "GASOLINA PREMIUM",   "AMARELADA",  735.00, 775.00, 1, 24.0, 26.0, 0, 0, 0,     0, 0, 0 },
+    { "ETANOL HIDRATADO",   "INCOLOR",    805.20, 811.20, 0, 0, 0,       1, 92.5, 94.6, 0, 0, 0 },
+    { "ETANOL ADITIVADO",   "ESVERDEADA", 805.20, 811.20, 0, 0, 0,       1, 92.5, 94.6, 0, 0, 0 },
+    { "DIESEL S10",         "AMARELADA",  817.00, 865.00, 0, 0, 0,       0, 0, 0,     1, 14.5, 15.5 },
+    { "DIESEL S500",        "VERMELHA",   817.00, 865.00, 0, 0, 0,       0, 0, 0,     1, 14.5, 15.5 }
 };
 
-#define N_PRODUTOS_BASE ((int)(sizeof base / sizeof base[0]))
+#define N_CATALOGO ((int)(sizeof catalogo / sizeof catalogo[0]))
 
 static const struct ProdutoBase *base_por_nome(const char *nome)
 {
     int i;
-    for (i = 0; i < N_PRODUTOS_BASE; i++)
-        if (!strcmp(base[i].nome, nome)) return &base[i];
+    for (i = 0; i < N_CATALOGO; i++)
+        if (!strcmp(catalogo[i].nome, nome)) return &catalogo[i];
     return NULL;
+}
+
+int store_catalogo_n(void) { return N_CATALOGO; }
+
+void store_catalogo_produto(int i, Produto *p)
+{
+    const struct ProdutoBase *b;
+    memset(p, 0, sizeof *p);
+    if (i < 0 || i >= N_CATALOGO) return;
+    b = &catalogo[i];
+    p->id = i + 1;
+    str_copy(p->nome, sizeof p->nome, b->nome);
+    str_copy(p->aspecto_padrao, sizeof p->aspecto_padrao, "L.I.I.");
+    str_copy(p->cor_padrao, sizeof p->cor_padrao, b->cor);
+    p->massa_min = b->mmin;     p->massa_max = b->mmax;
+    p->usa_teor_gas = b->gas;   p->gas_min = b->gmin;  p->gas_max = b->gmax;
+    p->usa_teor_aehc = b->aehc; p->aehc_min = b->amin; p->aehc_max = b->amax;
+    p->usa_teor_bio = b->bio;   p->bio_min = b->bmin;  p->bio_max = b->bmax;
+    p->ativo = 1;
 }
 
 static void semeia_produtos(Store *s)
 {
     int i;
-
     s->n_produtos = 0;
-    for (i = 0; i < N_PRODUTOS_BASE; i++) {
-        Produto *p = &s->produtos[s->n_produtos];
-        memset(p, 0, sizeof *p);
-        p->id = i + 1;
-        str_copy(p->nome, sizeof p->nome, base[i].nome);
-        str_copy(p->aspecto_padrao, sizeof p->aspecto_padrao, "L.I.I.");
-        str_copy(p->cor_padrao, sizeof p->cor_padrao, base[i].cor);
-        p->massa_min = base[i].mmin; p->massa_max = base[i].mmax;
-        p->usa_teor_gas = base[i].gas;
-        p->gas_min = base[i].gmin;   p->gas_max = base[i].gmax;
-        p->usa_teor_aehc = base[i].aehc;
-        p->aehc_min = base[i].amin;  p->aehc_max = base[i].amax;
-        p->usa_teor_bio = base[i].bio;
-        p->bio_min = base[i].bmin;   p->bio_max = base[i].bmax;
-        p->ativo = 1;
-        s->n_produtos++;
-    }
+    for (i = 0; i < N_CATALOGO && i < MAX_PRODUTOS; i++)
+        store_catalogo_produto(i, &s->produtos[s->n_produtos++]);
 }
 
 static void semeia_config(Store *s)
 {
+    /* Senha vazia de propósito: quem cria é o assistente de primeira
+       execução. Não existe mais senha padrão conhecida. */
     memset(&s->config, 0, sizeof s->config);
-    str_copy(s->config.razao_social,  sizeof s->config.razao_social,  "");
-    str_copy(s->config.pasta_saida,   sizeof s->config.pasta_saida,   "Formularios");
-    senha_hash("admin", s->config.senha_hash, sizeof s->config.senha_hash);
 }
 
 /* ---------- leitura ---------- */
@@ -160,11 +169,7 @@ static void le_config(Store *s)
         else if (!strcmp(chave, "impressora"))    str_copy(s->config.impressora,    sizeof s->config.impressora,    eq + 1);
     }
     fclose(f);
-
-    if (str_empty(s->config.pasta_saida))
-        str_copy(s->config.pasta_saida, sizeof s->config.pasta_saida, "Formularios");
-    if (str_empty(s->config.senha_hash))
-        senha_hash("admin", s->config.senha_hash, sizeof s->config.senha_hash);
+    str_trim(s->config.senha_hash);
 }
 
 static void le_produtos(Store *s)
@@ -595,6 +600,29 @@ void store_remove(void *lista, int *n, size_t tam_item, int indice)
             base + (size_t)(indice + 1) * tam_item,
             (size_t)(*n - indice - 1) * tam_item);
     (*n)--;
+}
+
+int store_configurado(const Store *s)
+{
+    return s && !str_empty(s->config.senha_hash);
+}
+
+int store_proximo_id_produto(const Store *s)
+{
+    return proximo_id_generico(s->produtos, s->n_produtos, sizeof *s->produtos);
+}
+
+int store_salva_tudo(const Store *s)
+{
+    int r = 0;
+    r |= store_salva_config(s);
+    r |= store_salva_produtos(s);
+    r |= store_salva_distribuidores(s);
+    r |= store_salva_transportadores(s);
+    r |= store_salva_placas(s);
+    r |= store_salva_motoristas(s);
+    r |= store_salva_analistas(s);
+    return r ? -1 : 0;
 }
 
 int store_indice_padrao(const Empresa *lista, int n)
